@@ -2,6 +2,7 @@
 Point of Sale Screen - Cashier interface
 """
 
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List
@@ -17,6 +18,7 @@ class POSTab:
         self.user = user
         self.cart_items = []
         self.current_order = None
+        self.held_orders: List[Dict] = []
         self.setup_ui()
         self.load_categories()
         self.load_menu_items()
@@ -155,11 +157,13 @@ class POSTab:
         checkout_frame = ttk.Frame(payment_grid)
         checkout_frame.grid(row=1, column=0, columnspan=2, pady=10)
         
-        ttk.Button(checkout_frame, text="Process Order", 
+        ttk.Button(checkout_frame, text="Process Order",
                   command=self.process_order, style="Accent.TButton").pack(fill=tk.X, pady=(0, 5))
-        ttk.Button(checkout_frame, text="Hold Order", 
+        ttk.Button(checkout_frame, text="Hold Order",
                   command=self.hold_order).pack(fill=tk.X, pady=(0, 5))
-        ttk.Button(checkout_frame, text="Cancel Order", 
+        ttk.Button(checkout_frame, text="Resume Held Order",
+                  command=self.resume_held_order).pack(fill=tk.X, pady=(0, 5))
+        ttk.Button(checkout_frame, text="Cancel Order",
                   command=self.cancel_order).pack(fill=tk.X)
     
     def load_categories(self):
@@ -353,8 +357,55 @@ class POSTab:
     
     def hold_order(self):
         """Hold the current order for later"""
-        # Implementation for holding orders
-        messagebox.showinfo("Info", "Hold order functionality not yet implemented")
+        if not self.cart_items:
+            messagebox.showwarning("Warning", "Cart is empty")
+            return
+
+        held = {
+            'customer': self.customer_var.get().strip(),
+            'order_type': self.order_type_var.get(),
+            'payment_method': self.payment_method_var.get(),
+            'items': [item.copy() for item in self.cart_items]
+        }
+        self.held_orders.append(held)
+
+        self.clear_cart()
+        self.customer_var.set("")
+        messagebox.showinfo("Info", "Order held successfully")
+
+    def resume_held_order(self):
+        """Resume a previously held order"""
+        if not self.held_orders:
+            messagebox.showinfo("Info", "No held orders")
+            return
+
+        top = tk.Toplevel(self.parent)
+        top.title("Resume Held Order")
+
+        listbox = tk.Listbox(top, width=40)
+        for idx, order in enumerate(self.held_orders):
+            customer = order['customer'] or 'Guest'
+            total = sum(i['total_price'] for i in order['items'])
+            listbox.insert(tk.END, f"{idx + 1}. {customer} - {POSUtils.format_currency(total)}")
+        listbox.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+        def load_selected():
+            sel = listbox.curselection()
+            if not sel:
+                return
+            index = sel[0]
+            data = self.held_orders.pop(index)
+
+            self.cart_items = [item.copy() for item in data['items']]
+            self.customer_var.set(data['customer'])
+            self.order_type_var.set(data['order_type'])
+            self.payment_method_var.set(data['payment_method'])
+
+            self.update_cart_display()
+            self.update_totals()
+            top.destroy()
+
+        ttk.Button(top, text="Resume", command=load_selected).pack(pady=(0, 10))
     
     def cancel_order(self):
         """Cancel the current order"""
