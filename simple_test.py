@@ -30,7 +30,7 @@ def main():
     # Test 2: Import test
     print("\n2. Testing Module Imports...")
     modules = [
-        'utils.user_manager',
+        'logic.user_manager',
         'ui.startup_screen',
         'ui.admin.admin_panel',
         'ui.admin.menu_manager'
@@ -46,8 +46,8 @@ def main():
     # Test 3: User Manager
     print("\n3. Testing User Authentication...")
     try:
-        from utils.user_manager import UserManager
-        result = UserManager.verify_credentials('admin', 'admin123')
+        from logic.user_manager import UserManager
+        result = UserManager.authenticate_user('admin', 'admin123')
         if result:
             print("   ✅ Admin login works")
         else:
