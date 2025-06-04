@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="64" height="64" rx="12" fill="#2196F3"/>
+  <path d="M16 20h32v24H16V20z" fill="white"/>
+  <path d="M20 28h24v8H20v-8z" fill="#2196F3"/>
+  <text x="32" y="52" text-anchor="middle" fill="white" font-family="Arial" font-size="8" font-weight="bold">POS-V2</text>
+</svg>

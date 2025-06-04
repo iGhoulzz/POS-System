@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS-V2 Kiosk</title>    <link rel="stylesheet" href="css/styles-new.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>    <!-- Loading Screen -->
+    <div id="loading-screen" class="screen loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fas fa-utensils"></i>
+            </div>
+            <h2>Welcome to Our Restaurant</h2>
+            <div class="loading-spinner"></div>
+            <p>Preparing your ordering experience...</p>
+        </div>
+    </div>
+
+    <!-- Order Type Selection Screen -->
+    <div id="order-type-screen" class="screen hidden">
+        <div class="order-type-container">
+            <div class="welcome-header">
+                <h1>Welcome!</h1>
+                <p>How would you like to enjoy your meal today?</p>
+            </div>
+            
+            <div class="order-type-cards">
+                <div class="order-type-card" data-type="dine-in">
+                    <div class="card-icon">
+                        <i class="fas fa-chair"></i>
+                    </div>
+                    <h3>Dine In</h3>
+                    <p>Enjoy your meal in our restaurant</p>
+                    <div class="card-overlay">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                </div>
+                
+                <div class="order-type-card" data-type="takeaway">
+                    <div class="card-icon">
+                        <i class="fas fa-shopping-bag"></i>
+                    </div>
+                    <h3>Take Away</h3>
+                    <p>Order and take your meal to go</p>
+                    <div class="card-overlay">
+                        <i class="fas fa-arrow-right"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer-text">
+                <p>Touch a card to continue</p>
+            </div>
+        </div>
+    </div>    <!-- Main Dashboard -->
+    <div id="dashboard-screen" class="screen hidden">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-left">
+                <button id="back-btn" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back</span>
+                </button>
+            </div>
+            <div class="header-center">
+                <div class="order-type-indicator">
+                    <i id="order-type-icon" class="fas fa-chair"></i>
+                    <span id="order-type-text">Dine In</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="current-time">
+                    <span id="current-time"></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            <!-- Categories Sidebar -->
+            <aside class="categories-sidebar">
+                <div class="categories-header">
+                    <h3>Categories</h3>
+                </div>
+                <div id="categories-list" class="categories-list">
+                    <!-- Categories will be loaded here -->
+                </div>
+            </aside>
+
+            <!-- Menu Items Grid -->
+            <section class="menu-items-section">
+                <div class="section-header">
+                    <h2 id="current-category-title">All Items</h2>
+                    <div class="items-count">
+                        <span id="items-count">0 items</span>
+                    </div>
+                </div>
+                <div id="menu-items-grid" class="menu-items-grid">
+                    <!-- Menu items will be loaded here -->
+                </div>
+            </section>
+        </main>
+
+        <!-- Cart Button -->
+        <div class="cart-button-container">
+            <button id="cart-btn" class="cart-btn">
+                <div class="cart-icon">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span id="cart-count" class="cart-count">0</span>
+                </div>
+                <div class="cart-text">
+                    <span>View Cart</span>
+                    <span id="cart-total" class="cart-total">$0.00</span>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- Payment Screen -->
+    <div id="payment-screen" class="screen hidden">
+        <div class="payment-container">
+            <div class="payment-header">
+                <button id="payment-back-btn" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to Menu</span>
+                </button>
+                <h2>Your Order</h2>
+            </div>
+
+            <div class="payment-content">
+                <div class="cart-items-section">
+                    <div class="cart-items-header">
+                        <h3>Order Summary</h3>
+                    </div>
+                    <div id="cart-items-list" class="cart-items-list">
+                        <!-- Cart items will be displayed here -->
+                    </div>
+                </div>
+
+                <div class="payment-summary">
+                    <div class="summary-line">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">$0.00</span>
+                    </div>
+                    <div class="summary-line">
+                        <span>Tax:</span>
+                        <span id="tax-amount">$0.00</span>
+                    </div>
+                    <div class="summary-line total">
+                        <span>Total:</span>
+                        <span id="final-total">$0.00</span>
+                    </div>
+                </div>
+
+                <div class="payment-methods">
+                    <h3>Payment Method</h3>
+                    <div class="payment-buttons">
+                        <button class="payment-method-btn" data-method="cash">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <span>Cash</span>
+                        </button>
+                        <button class="payment-method-btn" data-method="card">
+                            <i class="fas fa-credit-card"></i>
+                            <span>Card</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="place-order-btn" class="place-order-btn">
+                        <i class="fas fa-check"></i>
+                        <span>Place Order</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Detail Modal -->
+    <div id="item-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-item-name">Item Name</h3>
+                <button id="modal-close-btn" class="modal-close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="item-image">
+                    <img id="modal-item-image" src="../assets/images/placeholder.svg" alt="Item Image">
+                </div>
+                <div class="item-details">
+                    <p id="modal-item-description">Item description</p>
+                    <div class="item-price">
+                        <span id="modal-item-price">$0.00</span>
+                    </div>
+                    <div class="quantity-controls">
+                        <button id="quantity-decrease" class="quantity-btn">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <span id="quantity-display" class="quantity-display">1</span>
+                        <button id="quantity-increase" class="quantity-btn">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="add-to-cart-btn" class="add-to-cart-btn">
+                    <i class="fas fa-plus"></i>
+                    <span>Add to Cart</span>
+                </button>
+            </div>
+        </div>
+    </div>    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Scripts -->
+    <script src="js/database.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/kiosk.js"></script>
+</body>
+</html>
