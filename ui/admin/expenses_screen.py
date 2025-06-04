@@ -9,7 +9,7 @@ class ExpensesScreen:
     def __init__(self, parent, db_path):
         self.parent = parent
         self.db_path = db_path
-        self.settings_manager = SettingsManager(db_path)
+        self.settings_manager = SettingsManager()
         
         self.create_widgets()
         self.load_expenses()

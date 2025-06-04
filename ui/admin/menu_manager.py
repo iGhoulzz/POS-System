@@ -188,14 +188,14 @@ class MenuManagerTab:
         self.cost_price_entry.grid(row=0, column=1, sticky='w', pady=10)
         self.cost_price_entry.bind('<KeyRelease>', self.calculate_profit)
         
-        # Sell price
-        ttk.Label(pricing_frame, text="Sell Price ($):", font=('Segoe UI', 10, 'bold')).grid(
+        # Price (selling price)
+        ttk.Label(pricing_frame, text="Price ($):", font=('Segoe UI', 10, 'bold')).grid(
             row=1, column=0, sticky='w', pady=10, padx=(0, 10))
-        self.sell_price_var = tk.StringVar(value="0.00")
-        self.sell_price_entry = ttk.Entry(pricing_frame, textvariable=self.sell_price_var, 
-                                         font=('Segoe UI', 10), width=15)
-        self.sell_price_entry.grid(row=1, column=1, sticky='w', pady=10)
-        self.sell_price_entry.bind('<KeyRelease>', self.calculate_profit)
+        self.price_var = tk.StringVar(value="0.00")
+        self.price_entry = ttk.Entry(pricing_frame, textvariable=self.price_var,
+                                     font=('Segoe UI', 10), width=15)
+        self.price_entry.grid(row=1, column=1, sticky='w', pady=10)
+        self.price_entry.bind('<KeyRelease>', self.calculate_profit)
         
         # Profit calculation
         profit_frame = ttk.LabelFrame(pricing_frame, text="💡 Profit Analysis", padding=10)
@@ -297,10 +297,10 @@ class MenuManagerTab:
             # Add items to treeview
             for item in items:
                 status = "Active" if item.get('is_active', 1) else "Inactive"
-                price = f"${item.get('sell_price', 0):.2f}"
-                self.items_tree.insert('', tk.END, 
-                                     values=(item.get('name', ''), 
-                                           item.get('category_name', ''), 
+                price = f"${item.get('price', 0):.2f}"
+                self.items_tree.insert('', tk.END,
+                                     values=(item.get('name', ''),
+                                           item.get('category_name', ''),
                                            price, status),
                                      tags=(item.get('id', ''),))
             
@@ -456,7 +456,7 @@ class MenuManagerTab:
                 
                 # Load pricing
                 self.cost_price_var.set(str(item.get('cost_price', 0)))
-                self.sell_price_var.set(str(item.get('sell_price', 0)))
+                self.price_var.set(str(item.get('price', 0)))
                 
                 # Load other fields
                 self.is_active_var.set(bool(item.get('is_active', 1)))
@@ -498,7 +498,7 @@ class MenuManagerTab:
         """Calculate and display profit information"""
         try:
             cost = float(self.cost_price_var.get() or 0)
-            price = float(self.sell_price_var.get() or 0)
+            price = float(self.price_var.get() or 0)
             
             profit = price - cost
             margin = (profit / price * 100) if price > 0 else 0
@@ -519,12 +519,12 @@ class MenuManagerTab:
             self.profit_margin_label.configure(text="Margin: 0%")
     
     def set_margin(self, margin_multiplier):
-        """Set sell price based on margin multiplier"""
+        """Set price based on margin multiplier"""
         try:
             cost = float(self.cost_price_var.get() or 0)
             if cost > 0:
-                sell_price = cost * (1 + margin_multiplier)
-                self.sell_price_var.set(f"{sell_price:.2f}")
+                price = cost * (1 + margin_multiplier)
+                self.price_var.set(f"{price:.2f}")
                 self.calculate_profit()
         except ValueError:
             pass
@@ -591,19 +591,19 @@ class MenuManagerTab:
         
         try:
             cost_price = float(self.cost_price_var.get() or 0)
-            sell_price = float(self.sell_price_var.get() or 0)
-            print(f"💰 Parsed prices - Cost: ${cost_price:.2f}, Sell: ${sell_price:.2f}")
-            logging.info(f"MenuManager: Parsed prices for {item_name} - Cost: ${cost_price:.2f}, Sell: ${sell_price:.2f}")
+            price = float(self.price_var.get() or 0)
+            print(f"💰 Parsed prices - Cost: ${cost_price:.2f}, Price: ${price:.2f}")
+            logging.info(f"MenuManager: Parsed prices for {item_name} - Cost: ${cost_price:.2f}, Price: ${price:.2f}")
         except ValueError:
             print("❌ Validation failed: Invalid price format")
             logging.error("MenuManager: Validation failed - Invalid price format")
             messagebox.showerror("Error", "Please enter valid prices")
             return
         
-        if sell_price <= 0:
-            print("❌ Validation failed: Sell price must be greater than 0")
-            logging.error("MenuManager: Validation failed - Sell price must be greater than 0")
-            messagebox.showerror("Error", "Sell price must be greater than 0")
+        if price <= 0:
+            print("❌ Validation failed: Price must be greater than 0")
+            logging.error("MenuManager: Validation failed - Price must be greater than 0")
+            messagebox.showerror("Error", "Price must be greater than 0")
             return
         
         print(f"🔍 Looking up category ID for: {self.category_var.get()}")
@@ -613,7 +613,7 @@ class MenuManagerTab:
             from db.db_utils import execute_query, execute_query_dict
             
             # Get category ID
-            categories = execute_query_dict("SELECT id FROM categories WHERE name = ?", 
+            categories = execute_query_dict("SELECT id FROM categories WHERE name = ?",
                                            (self.category_var.get(),), fetch='all')
             if not categories:
                 print("❌ Category not found in database")
@@ -657,11 +657,10 @@ class MenuManagerTab:
                 print(f"🔄 Updating existing menu item ID: {self.current_item['id']}")
                 logging.info(f"MenuManager: Updating existing menu item ID: {self.current_item['id']}")
                 
-                query = """UPDATE menu_items SET 
-                          name=?, description=?, category_id=?, cost_price=?, sell_price=?, 
-                          is_active=?, prep_time=?, image_path=? 
-                          WHERE id=?"""
-                params = (name, description, category_id, cost_price, sell_price, 
+                query = """UPDATE menu_items SET
+                          name=?, description=?, category_id=?, cost_price=?, price=?,
+                          is_active=?, prep_time=?, image_path=? WHERE id=?"""
+                params = (name, description, category_id, cost_price, price,
                          is_active, prep_time, image_path, self.current_item['id'])
                 
                 rows_affected = execute_query(query, params)
@@ -680,10 +679,10 @@ class MenuManagerTab:
                 print(f"➕ Creating new menu item: {name}")
                 logging.info(f"MenuManager: Creating new menu item: {name}")
                 
-                query = """INSERT INTO menu_items 
-                          (name, description, category_id, cost_price, sell_price, is_active, prep_time, image_path) 
+                query = """INSERT INTO menu_items
+                          (name, description, category_id, cost_price, price, is_active, prep_time, image_path)
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
-                params = (name, description, category_id, cost_price, sell_price, 
+                params = (name, description, category_id, cost_price, price,
                          is_active, prep_time, image_path)
                 
                 rows_affected = execute_query(query, params)
@@ -720,7 +719,7 @@ class MenuManagerTab:
         self.description_text.delete(1.0, tk.END)
         self.category_var.set("")
         self.cost_price_var.set("0.00")
-        self.sell_price_var.set("0.00")
+        self.price_var.set("0.00")
         self.is_active_var.set(True)
         self.prep_time_var.set("0")
         self.remove_image()
