@@ -24,6 +24,10 @@ venv/
 .env/
 ENV/
 
+# Files with unusual characters or encoding issues
+*ersUser*
+*\357\200\242*
+
 # Node
 node_modules/
 **/node_modules/

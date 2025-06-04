@@ -11,11 +11,12 @@ class KioskApp {
         this.isLoading = false;
         
         this.init();
-    }
-
-    async init() {
+    }    async init() {
         try {
             console.log('🚀 Initializing Kiosk App...');
+            
+            // Add custom styles first to ensure proper interaction
+            this.addStyleSheet();
             
             // Wait for DOM to be ready
             if (document.readyState === 'loading') {
@@ -73,25 +74,8 @@ class KioskApp {
                 console.log('⬅️ Back button clicked');
                 this.showOrderTypeScreen();
             });
-        }
-
-        // Category selection using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.category-item')) {
-                const categoryId = e.target.closest('.category-item').dataset.categoryId;
-                console.log('📂 Category selected:', categoryId);
-                this.selectCategory(categoryId);
-            }
-        });
-
-        // Menu item clicks using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.menu-item')) {
-                const itemId = e.target.closest('.menu-item').dataset.itemId;
-                console.log('🍔 Menu item selected:', itemId);
-                this.showItemDetail(itemId);
-            }
-        });
+        }        // Removed document-level click handler - using specific handlers instead
+        console.log('✅ Event listeners initialized with specific handlers');
 
         // Add to cart from modal
         const addToCartBtn = document.getElementById('add-to-cart-btn');
@@ -335,25 +319,96 @@ class KioskApp {
         
         // Render menu items for this category
         this.renderMenuItems(categoryId);
-    }
-
-    renderCategories() {
+    }    renderCategories() {
+        console.log('🎨 Rendering categories with DOM creation...');
         const sidebar = document.getElementById('categories-list');
-        if (!sidebar) return;
+        if (!sidebar) {
+            console.error('❌ Categories sidebar not found!');
+            return;
+        }
 
-        const categoriesHTML = this.categories.map(category => `
-            <div class="category-item" data-category-id="${category.id}">
-                <div class="category-icon">
-                    <i class="${this.getCategoryIcon(category.name)}"></i>
-                </div>
-                <span class="category-name">${category.name}</span>
-            </div>
-        `).join('');
+        // Clear previous categories
+        sidebar.innerHTML = '';
+        console.log('📊 Categories to render:', this.categories.length);
 
-        sidebar.innerHTML = categoriesHTML;
+        // Create each category using DOM creation for better control
+        this.categories.forEach(category => {
+            console.log('🏷️ Rendering category:', category.name, 'ID:', category.id);
+            
+            // Create the category element
+            const categoryItem = document.createElement('div');
+            categoryItem.className = 'category-item';
+            categoryItem.setAttribute('data-category-id', category.id);
+            categoryItem.style.cursor = 'pointer';
+            
+            // Create icon element
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'category-icon';
+            const icon = document.createElement('i');
+            icon.className = this.getCategoryIcon(category.name);
+            iconDiv.appendChild(icon);
+            
+            // Create name element
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'category-name';
+            nameSpan.textContent = category.name;
+            
+            // Assemble the category item
+            categoryItem.appendChild(iconDiv);
+            categoryItem.appendChild(nameSpan);
+            
+            // Add direct click handler to this specific category
+            categoryItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                console.log('📂 Category clicked directly:', category.id, '-', category.name);
+                
+                // Update active category visual state
+                document.querySelectorAll('.category-item').forEach(cat => {
+                    cat.classList.remove('active');
+                });
+                categoryItem.classList.add('active');
+                
+                this.selectCategory(category.id);
+            });
+            
+            // Add to sidebar
+            sidebar.appendChild(categoryItem);
+        });
+        
+        // Verify categories were added
+        const renderedCategories = document.querySelectorAll('.category-item');
+        console.log('✅ Categories rendered:', renderedCategories.length);
+        renderedCategories.forEach((cat, index) => {
+            console.log(`📝 Category ${index}:`, cat.dataset.categoryId, cat.textContent.trim());
+        });
     }
 
-    renderMenuItems(categoryId) {
+    attachCategoryClickHandlers() {
+        console.log('🎯 Attaching category click handlers...');
+        const categoryItems = document.querySelectorAll('.category-item');
+        
+        categoryItems.forEach(categoryItem => {
+            categoryItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const categoryId = categoryItem.dataset.categoryId;
+                console.log('📂 Category clicked directly:', categoryId);
+                
+                // Update active category visual state
+                document.querySelectorAll('.category-item').forEach(cat => {
+                    cat.classList.remove('active');
+                });
+                categoryItem.classList.add('active');
+                
+                this.selectCategory(categoryId);
+            });
+        });
+        
+        console.log('✅ Category click handlers attached:', categoryItems.length);
+    }    renderMenuItems(categoryId) {
         const grid = document.getElementById('menu-items-grid');
         if (!grid) return;
 
@@ -386,6 +441,28 @@ class KioskApp {
         if (itemsCount) {
             itemsCount.textContent = `${categoryItems.length} items`;
         }
+
+        // Add specific click handlers to each menu item after rendering
+        this.attachMenuItemClickHandlers();
+    }
+
+    attachMenuItemClickHandlers() {
+        console.log('🍽️ Attaching menu item click handlers...');
+        const menuItems = document.querySelectorAll('.menu-item');
+        
+        menuItems.forEach(menuItem => {
+            menuItem.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const itemId = menuItem.dataset.itemId;
+                console.log('🍔 Menu item clicked directly:', itemId);
+                
+                this.showItemDetail(itemId);
+            });
+        });
+        
+        console.log('✅ Menu item click handlers attached:', menuItems.length);
     }
 
     // Item Detail Modal
@@ -713,6 +790,85 @@ class KioskApp {
         
         const key = categoryName.toLowerCase();
         return icons[key] || 'fas fa-utensils';
+    }
+
+    addStyleSheet() {
+        console.log('🎨 Adding dynamic styles for better interaction...');
+        const style = document.createElement('style');
+        style.textContent = `
+            /* Enhanced category interaction styles */
+            .category-item {
+                padding: 12px 16px;
+                margin-bottom: 8px;
+                background-color: var(--bg-card);
+                border-radius: var(--radius-md);
+                cursor: pointer !important;
+                transition: all 0.2s ease;
+                position: relative;
+                z-index: 100 !important; /* Very high z-index to ensure clickability */
+                border: 2px solid transparent;
+                pointer-events: auto !important;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                user-select: none;
+            }
+            
+            .category-item:hover {
+                background-color: var(--primary-light);
+                transform: translateY(-2px);
+                box-shadow: var(--shadow-md);
+                border-color: var(--primary-color);
+            }
+            
+            .category-item.active {
+                border-color: var(--primary-color);
+                background-color: var(--primary-light);
+                font-weight: bold;
+                color: var(--primary-color);
+            }
+            
+            .category-icon,
+            .category-name {
+                pointer-events: none !important; /* Make sure clicks go to parent */
+            }
+            
+            .category-icon {
+                font-size: 1.2rem;
+                width: 24px;
+                text-align: center;
+            }
+            
+            .category-name {
+                font-weight: 500;
+            }
+            
+            /* Ensure menu items don't overlap categories */
+            .menu-items-grid {
+                position: relative;
+                z-index: 50; /* Lower than categories */
+            }
+            
+            .menu-item {
+                position: relative;
+                z-index: 50;
+                pointer-events: auto !important;
+                cursor: pointer !important;
+            }
+            
+            /* Ensure sidebar has proper layering */
+            .categories-sidebar {
+                position: relative;
+                z-index: 100;
+            }
+            
+            .categories-list {
+                position: relative;
+                z-index: 100;
+            }
+        `;
+        document.head.appendChild(style);
+        console.log('✅ Dynamic styles added successfully');
     }
 
     // Mock data for fallback

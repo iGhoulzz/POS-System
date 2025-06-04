@@ -21,10 +21,9 @@
   "devDependencies": {
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4"
-  },
-  "dependencies": {
+  },  "dependencies": {
     "electron-store": "^8.1.0",
-    "sqlite3": "^5.1.6"
+    "better-sqlite3": "^8.7.0"
   },
   "build": {
     "appId": "com.posv2.kiosk",

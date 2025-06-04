@@ -331,6 +331,8 @@ body {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
+    position: relative;
+    z-index: 10; /* Ensure proper layering */
 }
 
 .categories-header {
@@ -361,6 +363,8 @@ body {
     transition: all var(--transition-fast);
     font-weight: 500;
     position: relative;
+    z-index: 15; /* High z-index for clickability */
+    pointer-events: auto; /* Ensure clicks are registered */
 }
 
 .category-item:hover {
@@ -398,6 +402,8 @@ body {
     display: flex;
     flex-direction: column;
     background: var(--bg-secondary);
+    position: relative;
+    z-index: 5; /* Lower z-index than categories */
 }
 
 .section-header {
@@ -428,10 +434,13 @@ body {
     gap: 1.5rem;
     overflow-y: auto;
     max-height: calc(100vh - 12rem);
+    position: relative;
+    z-index: 8; /* Ensure menu items are below categories */
 }
 
 /* Menu Item Cards */
-.menu-item-card {
+.menu-item-card,
+.menu-item {
     background: var(--bg-card);
     border-radius: var(--radius-xl);
     box-shadow: var(--shadow-md);
@@ -440,66 +449,85 @@ body {
     transition: all var(--transition-normal);
     border: 2px solid transparent;
     animation: fadeInUp 0.5s ease-out;
+    position: relative;
+    z-index: 8; /* Ensure menu items are clickable but below categories */
+    display: flex;
+    flex-direction: column;
 }
 
-.menu-item-card:hover {
+.menu-item:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-xl);
     border-color: var(--primary-color);
 }
 
-.menu-item-image {
+.menu-item .item-image {
     width: 100%;
     height: 12rem;
     overflow: hidden;
     position: relative;
 }
 
-.menu-item-image img {
+.menu-item .item-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     transition: transform var(--transition-normal);
 }
 
-.menu-item-card:hover .menu-item-image img {
+.menu-item:hover .item-image img {
     transform: scale(1.05);
 }
 
-.item-price-badge {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: var(--secondary-color);
-    color: var(--text-inverse);
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-lg);
-    font-weight: 600;
-    font-size: 1.1rem;
-    box-shadow: var(--shadow-md);
-}
-
-.menu-item-content {
+.menu-item .item-info {
     padding: 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
-.menu-item-title {
+.menu-item .item-name {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 0.5rem;
-    line-height: 1.4;
 }
 
-.menu-item-description {
+.menu-item .item-description {
     color: var(--text-secondary);
-    font-size: 0.95rem;
-    line-height: 1.5;
+    font-size: 0.9rem;
     margin-bottom: 1rem;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    flex: 1;
+}
+
+.menu-item .item-price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.menu-item .item-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(59, 130, 246, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+    pointer-events: none;
+}
+
+.menu-item:hover .item-overlay {
+    opacity: 1;
+}
+
+.menu-item .item-overlay i {
+    font-size: 2rem;
+    color: var(--text-inverse);
 }
 
 /* Cart Button */

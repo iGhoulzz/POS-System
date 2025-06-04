@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const Store = require('electron-store');
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 
 const store = new Store();
 
@@ -12,21 +12,15 @@ function getDatabasePath() {
 
 function executeQuery(query, params = []) {
     const dbPath = getDatabasePath();
-    return new Promise((resolve, reject) => {
-        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
-            if (err) {
-                return reject(err);
-            }
-        });
-
-        db.all(query, params, (err, rows) => {
-            db.close();
-            if (err) {
-                return reject(err);
-            }
-            resolve(rows);
-        });
-    });
+    try {
+        const db = new Database(dbPath, { readonly: true });
+        const stmt = db.prepare(query);
+        const rows = stmt.all(params);
+        db.close();
+        return Promise.resolve(rows);
+    } catch (err) {
+        return Promise.reject(err);
+    }
 }
 
 // Fix 1: Set app data path to avoid permission issues
