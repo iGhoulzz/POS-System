@@ -1,6 +1,33 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const Store = require('electron-store');
+const sqlite3 = require('sqlite3').verbose();
+
+const store = new Store();
+
+function getDatabasePath() {
+    return store.get('dbPath') || path.join(__dirname, '..', 'db', 'pos_system.db');
+}
+
+function executeQuery(query, params = []) {
+    const dbPath = getDatabasePath();
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+            if (err) {
+                return reject(err);
+            }
+        });
+
+        db.all(query, params, (err, rows) => {
+            db.close();
+            if (err) {
+                return reject(err);
+            }
+            resolve(rows);
+        });
+    });
+}
 
 // Fix 1: Set app data path to avoid permission issues
 const userDataPath = path.join(__dirname, 'app-data');
@@ -414,9 +441,7 @@ class POSKioskApp {
         
         // Database path configuration
         ipcMain.handle('get-db-path', () => {
-            // Return path to the database file
-            const dbPath = store.get('dbPath') || path.join(__dirname, '..', 'db', 'pos.db');
-            return dbPath;
+            return getDatabasePath();
         });
         
         ipcMain.handle('set-db-path', (event, dbPath) => {
@@ -426,13 +451,9 @@ class POSKioskApp {
         // Database operations for kiosk
         ipcMain.handle('db-get-categories', async () => {
             try {
-                // Return mock data for now - in production this would connect to actual database
-                return [
-                    { id: 1, name: 'Appetizers', description: 'Start your meal right' },
-                    { id: 2, name: 'Main Courses', description: 'Hearty main dishes' },
-                    { id: 3, name: 'Desserts', description: 'Sweet endings' },
-                    { id: 4, name: 'Beverages', description: 'Refreshing drinks' }
-                ];
+                const query = `SELECT id, name, description FROM categories WHERE is_active = 1 ORDER BY name`;
+                const rows = await executeQuery(query);
+                return rows;
             } catch (error) {
                 console.error('Error getting categories:', error);
                 throw error;
@@ -441,19 +462,17 @@ class POSKioskApp {
 
         ipcMain.handle('db-get-menu-items', async () => {
             try {
-                // Return mock data for now - in production this would connect to actual database
-                return [
-                    { id: 1, name: 'Caesar Salad', price: 12.99, category_id: 1, is_available: true, description: 'Fresh romaine lettuce with caesar dressing', image_path: 'assets/images/placeholder.svg' },
-                    { id: 2, name: 'Buffalo Wings', price: 9.99, category_id: 1, is_available: true, description: 'Spicy chicken wings with ranch', image_path: 'assets/images/placeholder.svg' },
-                    { id: 3, name: 'Grilled Salmon', price: 24.99, category_id: 2, is_available: true, description: 'Fresh Atlantic salmon with herbs', image_path: 'assets/images/placeholder.svg' },
-                    { id: 4, name: 'Ribeye Steak', price: 32.99, category_id: 2, is_available: true, description: 'Premium cut with garlic butter', image_path: 'assets/images/placeholder.svg' },
-                    { id: 5, name: 'Chicken Pasta', price: 18.99, category_id: 2, is_available: true, description: 'Creamy alfredo with grilled chicken', image_path: 'assets/images/placeholder.svg' },
-                    { id: 6, name: 'Chocolate Lava Cake', price: 8.99, category_id: 3, is_available: true, description: 'Warm chocolate cake with molten center', image_path: 'assets/images/placeholder.svg' },
-                    { id: 7, name: 'Tiramisu', price: 7.99, category_id: 3, is_available: true, description: 'Classic Italian coffee-flavored dessert', image_path: 'assets/images/placeholder.svg' },
-                    { id: 8, name: 'Fresh Coffee', price: 3.99, category_id: 4, is_available: true, description: 'Freshly brewed premium coffee', image_path: 'assets/images/placeholder.svg' },
-                    { id: 9, name: 'Fresh Juice', price: 4.99, category_id: 4, is_available: true, description: 'Seasonal fresh fruit juice', image_path: 'assets/images/placeholder.svg' },
-                    { id: 10, name: 'Craft Beer', price: 5.99, category_id: 4, is_available: true, description: 'Local craft beer selection', image_path: 'assets/images/placeholder.svg' }
-                ];
+                const query = `SELECT id, name, price, category_id, description, image_path, is_active FROM menu_items WHERE is_active = 1 ORDER BY name`;
+                const rows = await executeQuery(query);
+                return rows.map(row => ({
+                    id: row.id,
+                    name: row.name,
+                    price: row.price,
+                    category_id: row.category_id,
+                    description: row.description,
+                    image_path: row.image_path,
+                    is_available: row.is_active ? true : false
+                }));
             } catch (error) {
                 console.error('Error getting menu items:', error);
                 throw error;
