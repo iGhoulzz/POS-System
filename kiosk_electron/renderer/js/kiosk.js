@@ -8,6 +8,7 @@ class KioskApp {
         this.currentCategory = null;
         this.cart = [];
         this.cartTotal = 0;
+        this.paymentMethod = null;
         this.isLoading = false;
         
         this.init();
@@ -84,14 +85,18 @@ class KioskApp {
             }
         });
 
-        // Menu item clicks using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.menu-item')) {
-                const itemId = e.target.closest('.menu-item').dataset.itemId;
-                console.log('🍔 Menu item selected:', itemId);
-                this.showItemDetail(itemId);
-            }
-        });
+        // Menu item clicks using event delegation within the menu grid
+        const menuGrid = document.getElementById('menu-items-grid');
+        if (menuGrid) {
+            menuGrid.addEventListener('click', (e) => {
+                const itemElem = e.target.closest('.menu-item');
+                if (itemElem) {
+                    const itemId = itemElem.dataset.itemId;
+                    console.log('🍔 Menu item selected:', itemId);
+                    this.showItemDetail(itemId);
+                }
+            });
+        }
 
         // Add to cart from modal
         const addToCartBtn = document.getElementById('add-to-cart-btn');
@@ -599,6 +604,8 @@ class KioskApp {
         if (selectedMethod) {
             selectedMethod.classList.add('selected');
         }
+
+        this.paymentMethod = method;
         
         // Enable place order button
         const placeOrderBtn = document.getElementById('place-order-btn');
@@ -611,6 +618,7 @@ class KioskApp {
         try {
             const orderData = {
                 order_type: this.orderType,
+                payment_method: this.paymentMethod || 'cash',
                 items: this.cart.map(item => ({
                     item_id: item.id,
                     name: item.name,
@@ -629,16 +637,28 @@ class KioskApp {
             placeOrderBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
             placeOrderBtn.disabled = true;
 
-            // Simulate order processing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            this.showToast('Order placed successfully!', 'success');
-            console.log('Order placed successfully:', orderData);
-            
-            // Reset for next customer
-            setTimeout(() => {
-                this.resetKiosk();
-            }, 3000);
+            let result = { success: true };
+            if (window.electronAPI && window.electronAPI.database) {
+                try {
+                    result = await window.electronAPI.database.createOrder(orderData);
+                } catch (err) {
+                    console.error('Order creation failed:', err);
+                    result = { success: false };
+                }
+            }
+
+            if (result && result.success) {
+                this.showToast('Order placed successfully!', 'success');
+                console.log('Order placed successfully:', orderData);
+                setTimeout(() => {
+                    this.resetKiosk();
+                }, 3000);
+            } else {
+                this.showToast('Failed to place order.', 'error');
+            }
+
+            placeOrderBtn.innerHTML = originalText;
+            placeOrderBtn.disabled = false;
 
         } catch (error) {
             console.error('Failed to place order:', error);
