@@ -187,7 +187,7 @@ class UserManagement:
             return
             
         # Add user
-        if self.user_manager.create_user(username, password, fullname, role, email, is_active):
+        if UserManager.create_user(username, password, role, fullname):
             messagebox.showinfo("Success", "User added successfully")
             self.clear_form()
             self.load_users()
@@ -452,7 +452,7 @@ class UserManagement:
                 cursor = conn.cursor()
                 
                 hashed_password = hash_password(new_password)
-                cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_password, user_id))
+                cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
                 
                 conn.commit()
                 conn.close()
