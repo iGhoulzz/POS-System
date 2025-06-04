@@ -13,6 +13,14 @@ def hash_password(password: str) -> str:
     """Hash a password using SHA256"""
     return hashlib.sha256(password.encode()).hexdigest()
 
+def validate_number(value: str) -> bool:
+    """Return True if the string represents a number"""
+    try:
+        float(value)
+        return True
+    except (ValueError, TypeError):
+        return False
+
 class POSUtils:
     @staticmethod
     def format_currency(amount: float) -> str:
