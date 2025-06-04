@@ -23,6 +23,26 @@ function executeQuery(query, params = []) {
     }
 }
 
+function runQuery(query, params = []) {
+    const dbPath = getDatabasePath();
+    return new Promise((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
+            if (err) {
+                return reject(err);
+            }
+        });
+
+        db.run(query, params, function (err) {
+            const info = { lastID: this.lastID, changes: this.changes };
+            db.close();
+            if (err) {
+                return reject(err);
+            }
+            resolve(info);
+        });
+    });
+}
+
 // Fix 1: Set app data path to avoid permission issues
 const userDataPath = path.join(__dirname, 'app-data');
 if (!fs.existsSync(userDataPath)) {
@@ -475,20 +495,36 @@ class POSKioskApp {
 
         ipcMain.handle('db-create-order', async (event, orderData) => {
             try {
-                // In production, this would save to actual database
-                console.log('Creating order:', orderData);
-                
-                // Generate order ID and return success
-                const orderId = Date.now();
-                
-                return {
-                    success: true,
-                    orderId: orderId,
-                    orderNumber: `ORD-${orderId}`
-                };
+                const orderNumber = `ORD-${Date.now()}`;
+                const insertOrder = `INSERT INTO orders (order_number, customer_name, order_type, total_amount, tax_amount, payment_method, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                const result = await runQuery(insertOrder, [
+                    orderNumber,
+                    orderData.customer_name || '',
+                    orderData.order_type,
+                    orderData.total,
+                    orderData.tax,
+                    orderData.payment_method || 'cash',
+                    1
+                ]);
+
+                const orderId = result.lastID;
+
+                for (const item of orderData.items) {
+                    const insertItem = `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, special_instructions) VALUES (?, ?, ?, ?, ?, ?)`;
+                    await runQuery(insertItem, [
+                        orderId,
+                        item.item_id,
+                        item.quantity,
+                        item.price,
+                        item.quantity * item.price,
+                        item.special_instructions || ''
+                    ]);
+                }
+
+                return { success: true, orderId, orderNumber };
             } catch (error) {
                 console.error('Error creating order:', error);
-                throw error;
+                return { success: false, message: error.message };
             }
         });
         
