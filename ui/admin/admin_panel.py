@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import sqlite3
 from datetime import datetime, date
 import os
@@ -10,6 +10,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.insert(0, project_root)
 
 from logic.utils import POSUtils
+from logic.settings_manager import SettingsManager
 from .menu_manager import MenuManagerTab
 from .user_management import UserManagement
 from .reports_screen import ReportsTab
@@ -271,35 +272,23 @@ class AdminPanel:
                          bg='white', fg='#2c3e50')
         header.pack(pady=20)
         
-        # Orders list (placeholder)
         orders_frame = tk.Frame(self.content_area, bg='white')
         orders_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        # Create treeview for orders
-        columns = ('Order ID', 'Date', 'Customer', 'Items', 'Total', 'Status')
-        tree = ttk.Treeview(orders_frame, columns=columns, show='headings', height=15)
-        
-        # Define headings
+
+        columns = ('Order Number', 'Date', 'Customer', 'Items', 'Total', 'Status')
+        self.orders_tree = ttk.Treeview(orders_frame, columns=columns, show='headings', height=15)
+
         for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor='center')
-        
-        # Sample data (replace with real data)
-        sample_orders = [
-            ('ORD-001', '2025-06-02', 'John Doe', '3', POSUtils.format_currency(25.50), 'Completed'),
-            ('ORD-002', '2025-06-02', 'Jane Smith', '2', POSUtils.format_currency(18.75), 'Completed'),
-            ('ORD-003', '2025-06-02', 'Bob Johnson', '5', POSUtils.format_currency(42.30), 'Pending')
-        ]
-        
-        for order in sample_orders:
-            tree.insert('', tk.END, values=order)
-        
-        tree.pack(fill=tk.BOTH, expand=True)
-        
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(orders_frame, orient=tk.VERTICAL, command=tree.yview)
+            self.orders_tree.heading(col, text=col)
+            self.orders_tree.column(col, width=120, anchor='center')
+
+        self.orders_tree.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = ttk.Scrollbar(orders_frame, orient=tk.VERTICAL, command=self.orders_tree.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        tree.configure(yscrollcommand=scrollbar.set)
+        self.orders_tree.configure(yscrollcommand=scrollbar.set)
+
+        self.load_orders()
     
     def show_settings(self):
         """Show settings interface"""
@@ -308,16 +297,107 @@ class AdminPanel:
                          bg='white', fg='#2c3e50')
         header.pack(pady=20)
         
-        # Settings content (placeholder)
-        settings_frame = tk.LabelFrame(self.content_area, text="General Settings", 
-                                      font=('Segoe UI', 12, 'bold'),
-                                      bg='white', fg='#2c3e50',
-                                      padx=20, pady=15)
-        settings_frame.pack(fill=tk.X, padx=20, pady=20)
-        
-        tk.Label(settings_frame, text="Settings panel coming soon...", 
-                font=('Segoe UI', 12),
-                bg='white', fg='#7f8c8d').pack(pady=20)
+        settings_frame = tk.Frame(self.content_area, bg='white')
+        settings_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        columns = ('Key', 'Value', 'Description')
+        self.settings_tree = ttk.Treeview(settings_frame, columns=columns, show='headings', height=12)
+
+        for col in columns:
+            self.settings_tree.heading(col, text=col)
+            width = 150 if col != 'Description' else 250
+            self.settings_tree.column(col, width=width, anchor='center')
+
+        self.settings_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar = ttk.Scrollbar(settings_frame, orient=tk.VERTICAL, command=self.settings_tree.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.settings_tree.configure(yscrollcommand=scrollbar.set)
+        self.settings_tree.bind('<<TreeviewSelect>>', self.on_setting_select)
+
+        edit_frame = tk.LabelFrame(self.content_area, text='Edit Setting', font=('Segoe UI', 12, 'bold'), bg='white', fg='#2c3e50', padx=20, pady=15)
+        edit_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+
+        tk.Label(edit_frame, text='Key:', bg='white').grid(row=0, column=0, sticky='w')
+        self.setting_key_var = tk.StringVar()
+        tk.Entry(edit_frame, textvariable=self.setting_key_var, state='readonly', width=40).grid(row=0, column=1, padx=10, pady=5, sticky='w')
+
+        tk.Label(edit_frame, text='Value:', bg='white').grid(row=1, column=0, sticky='w')
+        self.setting_value_var = tk.StringVar()
+        tk.Entry(edit_frame, textvariable=self.setting_value_var, width=40).grid(row=1, column=1, padx=10, pady=5, sticky='w')
+
+        save_btn = tk.Button(edit_frame, text='Save', command=self.save_setting, bg='#3498db', fg='white', relief=tk.FLAT, cursor='hand2')
+        save_btn.grid(row=2, column=0, columnspan=2, pady=10)
+
+        self.load_settings()
+
+    def load_orders(self):
+        """Load orders from the database into the treeview"""
+        for item in self.orders_tree.get_children():
+            self.orders_tree.delete(item)
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            query = '''
+                SELECT o.order_number,
+                       DATE(o.created_at) as order_date,
+                       COALESCE(o.customer_name, ''),
+                       (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) as items_count,
+                       o.total_amount,
+                       o.status
+                FROM orders o
+                ORDER BY o.created_at DESC
+            '''
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            for order_number, order_date, customer, items_count, total, status in rows:
+                self.orders_tree.insert('', tk.END, values=(
+                    order_number,
+                    order_date,
+                    customer,
+                    items_count,
+                    POSUtils.format_currency(total),
+                    status.capitalize()
+                ))
+        except sqlite3.Error as e:
+            print(f"Database error in load_orders: {e}")
+
+    def load_settings(self):
+        """Load settings from database"""
+        for item in self.settings_tree.get_children():
+            self.settings_tree.delete(item)
+
+        settings = SettingsManager.get_all_settings()
+        for setting in settings:
+            self.settings_tree.insert('', tk.END, values=(
+                setting['key'],
+                setting['value'],
+                setting.get('description', '')
+            ))
+
+    def on_setting_select(self, event):
+        """Populate fields with selected setting"""
+        selected = self.settings_tree.selection()
+        if selected:
+            values = self.settings_tree.item(selected[0])['values']
+            self.setting_key_var.set(values[0])
+            self.setting_value_var.set(values[1])
+
+    def save_setting(self):
+        """Save changes to selected setting"""
+        key = self.setting_key_var.get().strip()
+        value = self.setting_value_var.get()
+        if not key:
+            messagebox.showerror("Error", "No setting selected")
+            return
+
+        if SettingsManager.set_setting(key, value):
+            messagebox.showinfo("Success", "Setting updated successfully")
+            self.load_settings()
+        else:
+            messagebox.showerror("Error", "Failed to update setting")
     
     def get_today_stats(self):
         """Get today's statistics from database"""
