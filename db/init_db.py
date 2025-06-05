@@ -18,7 +18,7 @@ def initialize_database():
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
     
-    # Users table
+    # Users table with optional email and last_login fields
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,10 +26,20 @@ def initialize_database():
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK (role IN ('admin', 'cashier', 'kitchen')),
             full_name TEXT NOT NULL,
+            email TEXT,
+            last_login TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             is_active BOOLEAN DEFAULT 1
         )
     ''')
+
+    # Add missing columns if database already exists without them
+    cursor.execute("PRAGMA table_info(users)")
+    existing_cols = [row[1] for row in cursor.fetchall()]
+    if 'email' not in existing_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if 'last_login' not in existing_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN last_login TIMESTAMP")
     
     # Categories table
     cursor.execute('''

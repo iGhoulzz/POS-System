@@ -27,6 +27,7 @@ POS-V2 is a comprehensive point of sale system designed for restaurants, cafes, 
 - 💰 **Expense Management** - Business expense tracking
 - 🎨 **Modern UI** - Multiple themes and responsive design
 - 🔐 **Secure Authentication** - Encrypted passwords and session management
+- 🖥️ **Cashier POS Interface** - Cashier users see a streamlined sales window
 
 ## 🏗️ Architecture
 
@@ -171,6 +172,7 @@ After installation, use these credentials to access the system:
 ### User Management
 - ✅ Role-based access control
 - ✅ Secure password management
+- ✅ Email and last-login tracking
 - ✅ Session tracking and timeout
 - ✅ User activity logging
 

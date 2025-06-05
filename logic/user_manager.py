@@ -26,17 +26,25 @@ class UserManager:
         """
         password_hash = UserManager.hash_password(password)
         query = '''
-            SELECT id, username, role, full_name, is_active
+            SELECT id, username, role, full_name, email, last_login, is_active
             FROM users
             WHERE username = ? AND password_hash = ? AND is_active = 1
         '''
-        return execute_query_dict(query, (username, password_hash), 'one')
+        user = execute_query_dict(query, (username, password_hash), 'one')
+
+        if user:
+            # Update last_login timestamp
+            execute_query(
+                "UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                (user['id'],)
+            )
+        return user
     
     @staticmethod
     def get_all_users() -> List[Dict]:
         """Get all users"""
         query = '''
-            SELECT id, username, role, full_name, created_at, is_active
+            SELECT id, username, role, full_name, email, last_login, created_at, is_active
             FROM users
             ORDER BY full_name
         '''
@@ -46,14 +54,21 @@ class UserManager:
     def get_user_by_id(user_id: int) -> Optional[Dict]:
         """Get user by ID"""
         query = '''
-            SELECT id, username, role, full_name, created_at, is_active
+            SELECT id, username, role, full_name, email, last_login, created_at, is_active
             FROM users
             WHERE id = ?
         '''
         return execute_query_dict(query, (user_id,), 'one')
     
     @staticmethod
-    def create_user(username: str, password: str, role: str, full_name: str) -> bool:
+    def create_user(
+        username: str,
+        password: str,
+        role: str,
+        full_name: str,
+        email: str = None,
+        is_active: bool = True
+    ) -> bool:
         """
         Create a new user
         
@@ -62,6 +77,8 @@ class UserManager:
             password: Plain text password
             role: User role ('admin', 'cashier', 'kitchen')
             full_name: Full name
+            email: Email address (optional)
+            is_active: Active status, defaults to True
         
         Returns:
             True if successful, False otherwise
@@ -69,18 +86,28 @@ class UserManager:
         try:
             password_hash = UserManager.hash_password(password)
             query = '''
-                INSERT INTO users (username, password_hash, role, full_name)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, role, full_name, email, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
             '''
-            execute_query(query, (username, password_hash, role, full_name))
+            execute_query(
+                query,
+                (username, password_hash, role, full_name, email, int(is_active))
+            )
             return True
         except Exception as e:
             print(f"Error creating user: {e}")
             return False
     
     @staticmethod
-    def update_user(user_id: int, username: str = None, password: str = None, 
-                   role: str = None, full_name: str = None, is_active: bool = None) -> bool:
+    def update_user(
+        user_id: int,
+        username: str = None,
+        password: str = None,
+        role: str = None,
+        full_name: str = None,
+        email: str = None,
+        is_active: bool = None
+    ) -> bool:
         """
         Update user information
         
@@ -90,6 +117,7 @@ class UserManager:
             password: New password (optional)
             role: New role (optional)
             full_name: New full name (optional)
+            email: New email address (optional)
             is_active: New active status (optional)
         
         Returns:
@@ -114,6 +142,10 @@ class UserManager:
             if full_name is not None:
                 updates.append("full_name = ?")
                 params.append(full_name)
+
+            if email is not None:
+                updates.append("email = ?")
+                params.append(email)
             
             if is_active is not None:
                 updates.append("is_active = ?")

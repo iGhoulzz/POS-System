@@ -95,9 +95,21 @@ class LoginScreen:
         try:
             # Construct database path
             db_path = os.path.join(DATABASE_PATH, DATABASE_NAME)
-            
+
             from ui.admin.admin_panel import AdminPanel
-            AdminPanel(self.parent, db_path)
+            from ui.admin.pos_screen import POSWindow
+            from ui.admin.kitchen_display import KitchenDisplayWindow
+
+            role = user.get("role")
+
+            if role == "admin":
+                AdminPanel(self.parent, db_path)
+            elif role == "cashier":
+                POSWindow(self.parent, user)
+            elif role == "kitchen":
+                KitchenDisplayWindow(self.parent)
+            else:
+                messagebox.showerror("Error", f"Unknown role: {role}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open main interface: {str(e)}")
             print(f"Error opening main interface: {e}")

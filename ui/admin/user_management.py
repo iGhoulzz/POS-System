@@ -187,7 +187,7 @@ class UserManagement:
             return
             
         # Add user
-        if UserManager.create_user(username, password, role, fullname):
+        if UserManager.create_user(username, password, role, fullname, email, is_active):
             messagebox.showinfo("Success", "User added successfully")
             self.clear_form()
             self.load_users()
