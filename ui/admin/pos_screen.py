@@ -721,7 +721,6 @@ class POSTab:
                 root.deiconify()  # Show login window again
             else:
                 # Create new login window if needed
-                import tkinter as tk
                 from ui.admin.login_screen import LoginScreen
                 new_root = tk.Tk()
                 LoginScreen(new_root)
