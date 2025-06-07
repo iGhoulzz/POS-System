@@ -63,7 +63,7 @@ class UserManager:
         return execute_query_dict(query, (user_id,), 'one')
     
     @staticmethod
-    def create_user(username: str, password: str, role: str, full_name: str, email: str = None) -> bool:
+    def create_user(username: str, password: str, role: str, full_name: str, email: str = None, is_active: bool = True) -> bool:
         """
         Create a new user
         
@@ -73,6 +73,7 @@ class UserManager:
             role: User role ('admin', 'cashier', 'kitchen')
             full_name: Full name
             email: Email address (optional)
+            is_active: Whether the account should be active
         
         Returns:
             True if successful, False otherwise
@@ -80,10 +81,10 @@ class UserManager:
         try:
             password_hash = UserManager.hash_password(password)
             query = '''
-                INSERT INTO users (username, password_hash, role, full_name, email)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, role, full_name, email, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
             '''
-            execute_query(query, (username, password_hash, role, full_name, email))
+            execute_query(query, (username, password_hash, role, full_name, email, int(is_active)))
             return True
         except Exception as e:
             print(f"Error creating user: {e}")
