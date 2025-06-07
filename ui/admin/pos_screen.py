@@ -20,6 +20,8 @@ class POSTab:
         self.cart_items = []
         self.current_order = None
         self.held_orders: List[Dict] = []
+        self.current_category_id = None
+        self.search_var = tk.StringVar()
         self.setup_ui()
         self.load_categories()
         self.load_menu_items()
@@ -160,10 +162,22 @@ class POSTab:
         self.cat_buttons_frame.pack(fill=tk.X, padx=10, pady=10)
         
         # Menu items frame with modern styling
-        items_frame = ttk.LabelFrame(left_frame, text="🛒 Menu Items", 
+        items_frame = ttk.LabelFrame(left_frame, text="🛒 Menu Items",
                                    style='Header.TLabelFrame')
         items_frame.pack(fill=tk.BOTH, expand=True)
-        
+
+        # Search bar for fast item lookup
+        search_frame = ttk.Frame(items_frame)
+        search_frame.pack(fill=tk.X, padx=10, pady=(10, 0))
+        ttk.Label(search_frame, text="🔎 Search:", font=('Segoe UI', 10)).pack(side=tk.LEFT)
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=20)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 5))
+        search_entry.bind('<Return>', lambda e: self.search_items())
+        ttk.Button(search_frame, text="Go", command=self.search_items,
+                  style='Action.TButton').pack(side=tk.LEFT)
+        ttk.Button(search_frame, text="Reset", command=self.reset_search,
+                  style='Danger.TButton').pack(side=tk.LEFT, padx=(5, 0))
+
         # Create scrollable frame for menu items
         canvas = tk.Canvas(items_frame, bg='#ffffff', highlightthickness=0)
         scrollbar = ttk.Scrollbar(items_frame, orient="vertical", command=canvas.yview)
@@ -241,8 +255,9 @@ class POSTab:
         
         cart_scrollbar = ttk.Scrollbar(cart_frame, orient=tk.VERTICAL, command=self.cart_tree.yview)
         self.cart_tree.configure(yscrollcommand=cart_scrollbar.set)
-        
+
         self.cart_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.cart_tree.bind('<Double-1>', self.edit_cart_item)
         cart_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=10)
         
         # Cart buttons with enhanced styling
@@ -340,8 +355,8 @@ class POSTab:
             categories = execute_query_dict(query, fetch='all') or []
             
             # Add "All" button with modern styling
-            all_btn = ttk.Button(self.cat_buttons_frame, text="📋 All Items", 
-                               command=lambda: self.load_menu_items(),
+            all_btn = ttk.Button(self.cat_buttons_frame, text="📋 All Items",
+                               command=lambda: self.load_menu_items(None),
                                style='Category.TButton')
             all_btn.pack(side=tk.LEFT, padx=(0, 8), pady=5)
             
@@ -355,29 +370,39 @@ class POSTab:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load categories: {str(e)}")
     
-    def load_menu_items(self, category_id=None):
+    def load_menu_items(self, category_id=None, search_query=None):
         """Load menu items as buttons"""
+        self.current_category_id = category_id
+        if search_query is None:
+            self.search_var.set('')
         # Clear existing item buttons
         for widget in self.items_scrollable_frame.winfo_children():
             widget.destroy()
-        
+
         try:
+            params = []
+            search_clause = ''
+            if search_query:
+                search_clause = ' AND name LIKE ?'
+                params.append(f"%{search_query}%")
+
             if category_id:
-                query = '''
+                query = f'''
                     SELECT id, name, price, description
                     FROM menu_items
-                    WHERE category_id = ? AND is_active = 1
+                    WHERE category_id = ? AND is_active = 1{search_clause}
                     ORDER BY name
                 '''
-                items = execute_query_dict(query, (category_id,), 'all') or []
+                params.insert(0, category_id)
+                items = execute_query_dict(query, tuple(params), 'all') or []
             else:
-                query = '''
+                query = f'''
                     SELECT id, name, price, description
                     FROM menu_items
-                    WHERE is_active = 1
+                    WHERE is_active = 1{search_clause}
                     ORDER BY name
                 '''
-                items = execute_query_dict(query, fetch='all') or []
+                items = execute_query_dict(query, tuple(params), 'all') or []
             
             # Create item buttons in grid with enhanced styling
             row = 0
@@ -409,6 +434,16 @@ class POSTab:
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load menu items: {str(e)}")
+
+    def search_items(self):
+        """Search menu items based on the search entry"""
+        query = self.search_var.get().strip()
+        self.load_menu_items(self.current_category_id, query)
+
+    def reset_search(self):
+        """Reset search field and reload items"""
+        self.search_var.set('')
+        self.load_menu_items(self.current_category_id)
     
     def add_to_cart(self, item):
         """Add item to cart"""
@@ -445,9 +480,50 @@ class POSTab:
         
         # Remove from cart
         del self.cart_items[item_index]
-        
+
         self.update_cart_display()
         self.update_totals()
+
+    def edit_cart_item(self, event=None):
+        """Open a popup to edit quantity or instructions for a cart item"""
+        selection = self.cart_tree.selection()
+        if not selection:
+            return
+
+        index = self.cart_tree.index(selection[0])
+        cart_item = self.cart_items[index]
+
+        top = tk.Toplevel(self.parent)
+        top.title("Edit Item")
+        top.resizable(False, False)
+        top.grab_set()
+
+        frame = ttk.Frame(top)
+        frame.pack(padx=20, pady=20)
+
+        qty_var = tk.IntVar(value=cart_item['quantity'])
+        instr_var = tk.StringVar(value=cart_item.get('special_instructions', ''))
+
+        ttk.Label(frame, text="Quantity:", font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, sticky=tk.W)
+        qty_spin = ttk.Spinbox(frame, from_=1, to=99, textvariable=qty_var, width=5)
+        qty_spin.grid(row=0, column=1, pady=(0, 10), sticky=tk.W)
+
+        ttk.Label(frame, text="Instructions:", font=('Segoe UI', 10, 'bold')).grid(row=1, column=0, sticky=tk.W)
+        instr_entry = ttk.Entry(frame, textvariable=instr_var, width=30)
+        instr_entry.grid(row=1, column=1, pady=(0, 10), sticky=tk.W)
+
+        def save():
+            cart_item['quantity'] = max(1, qty_var.get())
+            cart_item['special_instructions'] = instr_var.get().strip()
+            cart_item['total_price'] = cart_item['quantity'] * cart_item['unit_price']
+            self.update_cart_display()
+            self.update_totals()
+            top.destroy()
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.grid(row=2, column=0, columnspan=2, pady=(10, 0))
+        ttk.Button(btn_frame, text="Save", command=save, style='Action.TButton').pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(btn_frame, text="Cancel", command=top.destroy, style='Danger.TButton').pack(side=tk.LEFT)
     
     def clear_cart(self):
         """Clear all items from cart"""
