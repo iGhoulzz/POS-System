@@ -27,7 +27,9 @@ def initialize_database():
             role TEXT NOT NULL CHECK (role IN ('admin', 'cashier', 'kitchen')),
             full_name TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT 1
+            is_active BOOLEAN DEFAULT 1,
+            email TEXT,
+            last_login TIMESTAMP DEFAULT NULL
         )
     ''')
     
