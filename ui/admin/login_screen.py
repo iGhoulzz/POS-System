@@ -95,9 +95,27 @@ class LoginScreen:
         try:
             # Construct database path
             db_path = os.path.join(DATABASE_PATH, DATABASE_NAME)
-            
-            from ui.admin.admin_panel import AdminPanel
-            AdminPanel(self.parent, db_path)
+
+            role = user.get('role')
+
+            if role == 'admin':
+                # Admins use the main window directly
+                from ui.admin.admin_panel import AdminPanel
+                AdminPanel(self.parent, db_path)
+            elif role == 'cashier':
+                # Hide login window and launch POS interface in a new window
+                self.parent.withdraw()
+                from ui.admin.pos_screen import POSWindow
+                pos_win = tk.Toplevel(self.parent)
+                POSWindow(pos_win, user)
+            elif role == 'kitchen':
+                # Hide login window and open kitchen display
+                self.parent.withdraw()
+                from ui.admin.kitchen_display import KitchenDisplayWindow
+                kitchen_win = tk.Toplevel(self.parent)
+                KitchenDisplayWindow(kitchen_win)
+            else:
+                messagebox.showerror("Error", f"Unknown user role: {role}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open main interface: {str(e)}")
             print(f"Error opening main interface: {e}")
