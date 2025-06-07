@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, date
 import sqlite3
+from db.db_utils import get_db_connection
 from logic.utils import validate_number
 from logic.settings_manager import SettingsManager
 
@@ -161,7 +162,7 @@ class ExpensesScreen:
             return
             
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -193,7 +194,7 @@ class ExpensesScreen:
             self.tree.delete(item)
             
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             # Build query with filters
@@ -259,7 +260,7 @@ class ExpensesScreen:
         
         # Get current expense data
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT description, amount, category, date FROM expenses WHERE id = ?", (expense_id,))
             expense_data = cursor.fetchone()
@@ -330,7 +331,7 @@ class ExpensesScreen:
                 return
                 
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 cursor.execute('''
@@ -365,7 +366,7 @@ class ExpensesScreen:
         
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the expense '{description}'?"):
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 cursor.execute("DELETE FROM expenses WHERE id = ?", (expense_id,))

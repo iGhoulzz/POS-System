@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+from db.db_utils import get_db_connection
 from logic.user_manager import UserManager
 from logic.utils import hash_password
 
@@ -174,7 +175,7 @@ class UserManagement:
             
         # Check if username already exists
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
             if cursor.fetchone():
@@ -210,7 +211,7 @@ class UserManagement:
             self.tree.delete(item)
             
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             # Build query with filters
@@ -271,7 +272,7 @@ class UserManagement:
         
         # Get current user data
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT username, full_name, email, role, is_active FROM users WHERE id = ?", (user_id,))
             user_data = cursor.fetchone()
@@ -339,7 +340,7 @@ class UserManagement:
                 return
                 
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 cursor.execute('''
@@ -377,7 +378,7 @@ class UserManagement:
         
         if messagebox.askyesno("Confirm", f"Change {username}'s status to {new_status}?"):
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 new_active = 1 if new_status == "Active" else 0
@@ -448,7 +449,7 @@ class UserManagement:
                 return
                 
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 hashed_password = hash_password(new_password)
@@ -479,7 +480,7 @@ class UserManagement:
         
         if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete user '{username}'?\n\nThis action cannot be undone."):
             try:
-                conn = sqlite3.connect(self.db_path)
+                conn = get_db_connection()
                 cursor = conn.cursor()
                 
                 # Check if this is the last admin user
