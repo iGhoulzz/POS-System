@@ -117,8 +117,8 @@ def initialize_database():
     # Create default admin user if no users exist
     cursor.execute('SELECT COUNT(*) FROM users')
     if cursor.fetchone()[0] == 0:
-        import hashlib
-        password_hash = hashlib.sha256('admin123'.encode()).hexdigest()
+        from logic.utils import hash_password
+        password_hash = hash_password('admin123')
         cursor.execute('''
             INSERT INTO users (username, password_hash, role, full_name)
             VALUES (?, ?, ?, ?)
