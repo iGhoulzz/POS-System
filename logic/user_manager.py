@@ -2,16 +2,16 @@
 User management logic with last_login support
 """
 
-import hashlib
 from typing import Optional, List, Dict
 from datetime import datetime
 from db.db_utils import execute_query_dict, execute_query
+from logic.utils import hash_password as utils_hash_password
 
 class UserManager:
     @staticmethod
     def hash_password(password: str) -> str:
         """Hash a password using SHA256"""
-        return hashlib.sha256(password.encode()).hexdigest()
+        return utils_hash_password(password)
     
     @staticmethod
     def authenticate_user(username: str, password: str) -> Optional[Dict]:
