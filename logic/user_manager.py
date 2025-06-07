@@ -1,9 +1,10 @@
 """
-User management logic
+User management logic with last_login support
 """
 
 import hashlib
 from typing import Optional, List, Dict
+from datetime import datetime
 from db.db_utils import execute_query_dict, execute_query
 
 class UserManager:
@@ -15,7 +16,7 @@ class UserManager:
     @staticmethod
     def authenticate_user(username: str, password: str) -> Optional[Dict]:
         """
-        Authenticate a user
+        Authenticate a user and update last_login timestamp
         
         Args:
             username: Username
@@ -26,17 +27,26 @@ class UserManager:
         """
         password_hash = UserManager.hash_password(password)
         query = '''
-            SELECT id, username, role, full_name, is_active
+            SELECT id, username, role, full_name, email, last_login, is_active
             FROM users
             WHERE username = ? AND password_hash = ? AND is_active = 1
         '''
-        return execute_query_dict(query, (username, password_hash), 'one')
+        user = execute_query_dict(query, (username, password_hash), 'one')
+        
+        # Update last_login timestamp if authentication successful
+        if user:
+            current_time = datetime.now().isoformat()
+            update_query = "UPDATE users SET last_login = ? WHERE id = ?"
+            execute_query(update_query, (current_time, user['id']))
+            user['last_login'] = current_time
+        
+        return user
     
     @staticmethod
     def get_all_users() -> List[Dict]:
         """Get all users"""
         query = '''
-            SELECT id, username, role, full_name, created_at, is_active
+            SELECT id, username, role, full_name, email, last_login, created_at, is_active
             FROM users
             ORDER BY full_name
         '''
@@ -46,14 +56,14 @@ class UserManager:
     def get_user_by_id(user_id: int) -> Optional[Dict]:
         """Get user by ID"""
         query = '''
-            SELECT id, username, role, full_name, created_at, is_active
+            SELECT id, username, role, full_name, email, last_login, created_at, is_active
             FROM users
             WHERE id = ?
         '''
         return execute_query_dict(query, (user_id,), 'one')
     
     @staticmethod
-    def create_user(username: str, password: str, role: str, full_name: str) -> bool:
+    def create_user(username: str, password: str, role: str, full_name: str, email: str = None) -> bool:
         """
         Create a new user
         
@@ -62,6 +72,7 @@ class UserManager:
             password: Plain text password
             role: User role ('admin', 'cashier', 'kitchen')
             full_name: Full name
+            email: Email address (optional)
         
         Returns:
             True if successful, False otherwise
@@ -69,10 +80,10 @@ class UserManager:
         try:
             password_hash = UserManager.hash_password(password)
             query = '''
-                INSERT INTO users (username, password_hash, role, full_name)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO users (username, password_hash, role, full_name, email)
+                VALUES (?, ?, ?, ?, ?)
             '''
-            execute_query(query, (username, password_hash, role, full_name))
+            execute_query(query, (username, password_hash, role, full_name, email))
             return True
         except Exception as e:
             print(f"Error creating user: {e}")
@@ -80,7 +91,7 @@ class UserManager:
     
     @staticmethod
     def update_user(user_id: int, username: str = None, password: str = None, 
-                   role: str = None, full_name: str = None, is_active: bool = None) -> bool:
+                   role: str = None, full_name: str = None, email: str = None, is_active: bool = None) -> bool:
         """
         Update user information
         
@@ -90,6 +101,7 @@ class UserManager:
             password: New password (optional)
             role: New role (optional)
             full_name: New full name (optional)
+            email: New email (optional)
             is_active: New active status (optional)
         
         Returns:
@@ -114,6 +126,10 @@ class UserManager:
             if full_name is not None:
                 updates.append("full_name = ?")
                 params.append(full_name)
+            
+            if email is not None:
+                updates.append("email = ?")
+                params.append(email)
             
             if is_active is not None:
                 updates.append("is_active = ?")
