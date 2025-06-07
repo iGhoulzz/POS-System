@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3
+from db.db_utils import get_db_connection
 from datetime import datetime, date
 import os
 import sys
@@ -336,7 +337,7 @@ class AdminPanel:
             self.orders_tree.delete(item)
 
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             query = '''
                 SELECT o.order_number,
@@ -402,7 +403,7 @@ class AdminPanel:
     def get_today_stats(self):
         """Get today's statistics from database"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = get_db_connection()
             cursor = conn.cursor()
             
             today = date.today().strftime('%Y-%m-%d')
