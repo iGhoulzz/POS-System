@@ -335,7 +335,7 @@ class ExpensesScreen:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
-                    UPDATE expenses 
+                    UPDATE expenses
                     SET description = ?, amount = ?, category = ?, date = ?
                     WHERE id = ?
                 ''', (description, amount, category, date_str, expense_id))

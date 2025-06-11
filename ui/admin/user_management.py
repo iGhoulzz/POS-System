@@ -344,7 +344,7 @@ class UserManagement:
                 cursor = conn.cursor()
                 
                 cursor.execute('''
-                    UPDATE users 
+                    UPDATE users
                     SET full_name = ?, email = ?, role = ?, is_active = ?
                     WHERE id = ?
                 ''', (fullname, email, role, is_active, user_id))
