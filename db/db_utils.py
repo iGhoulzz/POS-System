@@ -8,12 +8,27 @@ from config import DATABASE_NAME, DATABASE_PATH
 from typing import List, Dict, Any, Optional
 
 def get_db_connection():
-    """Get a database connection with foreign keys enabled"""
+    """Get a database connection with foreign keys enabled and timeout settings"""
     db_file = os.path.join(DATABASE_PATH, DATABASE_NAME)
-    conn = sqlite3.connect(db_file)
-    # Enable foreign key constraints
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    
+    # Check if database file exists
+    if not os.path.exists(db_file):
+        raise sqlite3.OperationalError(f"Database file not found: {db_file}")
+    
+    try:
+        # Set timeout to 10 seconds to prevent infinite hanging
+        conn = sqlite3.connect(db_file, timeout=10.0)
+        # Enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys = ON")
+        # Set journal mode for better performance and reliability
+        conn.execute("PRAGMA journal_mode = WAL")
+        # Set a reasonable busy timeout
+        conn.execute("PRAGMA busy_timeout = 5000")
+        return conn
+    except sqlite3.OperationalError as e:
+        raise sqlite3.OperationalError(f"Database connection failed: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Unexpected database error: {str(e)}")
 
 def execute_query(query: str, params: tuple = None, fetch: str = None) -> Any:
     """
@@ -82,10 +97,11 @@ def execute_query_dict(query: str, params: tuple = None, fetch: str = None) -> A
     Returns:
         Query result as dictionary/list of dictionaries, rowcount for DELETE/UPDATE operations, or None
     """
-    conn = get_db_connection_with_dict()
-    cursor = conn.cursor()
-    
+    conn = None
     try:
+        conn = get_db_connection_with_dict()
+        cursor = conn.cursor()
+        
         if params:
             cursor.execute(query, params)
         else:
@@ -106,11 +122,26 @@ def execute_query_dict(query: str, params: tuple = None, fetch: str = None) -> A
         conn.commit()
         return result
     
+    except sqlite3.OperationalError as e:
+        if conn:
+            conn.rollback()
+        if "database is locked" in str(e).lower():
+            raise sqlite3.OperationalError("Database is busy. Please try again in a moment.")
+        elif "timeout" in str(e).lower():
+            raise sqlite3.OperationalError("Database operation timed out. Please check your connection.")
+        else:
+            raise sqlite3.OperationalError(f"Database error: {str(e)}")
+    except sqlite3.DatabaseError as e:
+        if conn:
+            conn.rollback()
+        raise sqlite3.DatabaseError(f"Database error: {str(e)}")
     except Exception as e:
-        conn.rollback()
-        raise e
+        if conn:
+            conn.rollback()
+        raise Exception(f"Unexpected database error: {str(e)}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def backup_database(backup_path: str) -> bool:
     """

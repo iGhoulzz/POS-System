@@ -140,6 +140,13 @@ def initialize_database():
     conn.commit()
     conn.close()
     print(f"Database initialized successfully at {db_file}")
+    
+    # Add sample data if database is empty
+    try:
+        from db.sample_data import add_sample_data
+        add_sample_data()
+    except Exception as e:
+        print(f"Warning: Could not add sample data: {e}")
 
 if __name__ == "__main__":
     initialize_database()
