@@ -3,6 +3,7 @@ Point of Sale Screen - Cashier interface
 """
 
 import os
+import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List
@@ -351,6 +352,14 @@ class POSTab:
             widget.destroy()
         
         try:
+            # Check database connection first
+            from db.db_utils import get_db_connection
+            
+            # Test connection
+            conn = get_db_connection()
+            conn.execute("SELECT 1")
+            conn.close()
+            
             query = "SELECT id, name FROM categories WHERE is_active = 1 ORDER BY name"
             categories = execute_query_dict(query, fetch='all') or []
             
@@ -367,19 +376,42 @@ class POSTab:
                                style='Category.TButton')
                 btn.pack(side=tk.LEFT, padx=(0, 8), pady=5)
                 
+        except sqlite3.OperationalError as e:
+            error_msg = f"Database error: {str(e)}"
+            messagebox.showerror("Database Error", f"Failed to load categories: {error_msg}")
+            # Add fallback button
+            error_btn = ttk.Button(self.cat_buttons_frame, text="⚠️ Database Error - Click to Retry",
+                                 command=self.load_categories,
+                                 style='Category.TButton')
+            error_btn.pack(side=tk.LEFT, padx=(0, 8), pady=5)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load categories: {str(e)}")
+            error_msg = f"Failed to load categories: {str(e)}"
+            messagebox.showerror("Error", error_msg)
+            # Add fallback button
+            retry_btn = ttk.Button(self.cat_buttons_frame, text="🔄 Error - Click to Retry",
+                                 command=self.load_categories,
+                                 style='Category.TButton')
+            retry_btn.pack(side=tk.LEFT, padx=(0, 8), pady=5)
     
     def load_menu_items(self, category_id=None, search_query=None):
         """Load menu items as buttons"""
         self.current_category_id = category_id
         if search_query is None:
             self.search_var.set('')
+        
         # Clear existing item buttons
         for widget in self.items_scrollable_frame.winfo_children():
             widget.destroy()
 
         try:
+            # Check database connection first
+            from db.db_utils import get_db_connection
+            
+            # Test connection
+            conn = get_db_connection()
+            conn.execute("SELECT 1")
+            conn.close()
+            
             params = []
             search_clause = ''
             if search_query:
@@ -403,6 +435,16 @@ class POSTab:
                     ORDER BY name
                 '''
                 items = execute_query_dict(query, tuple(params), 'all') or []
+            
+            # If no items found, show a message
+            if not items:
+                no_items_label = tk.Label(self.items_scrollable_frame, 
+                                        text="No products available in this category",
+                                        font=('Segoe UI', 12),
+                                        fg='#7f8c8d',
+                                        bg='white')
+                no_items_label.grid(row=0, column=0, columnspan=3, pady=20)
+                return
             
             # Create item buttons in grid with enhanced styling
             row = 0
@@ -432,8 +474,26 @@ class POSTab:
             for i in range(max_cols):
                 self.items_scrollable_frame.columnconfigure(i, weight=1)
                 
+        except sqlite3.OperationalError as e:
+            error_msg = f"Database error: {str(e)}"
+            messagebox.showerror("Database Error", f"Failed to load products: {error_msg}")
+            # Add fallback error label
+            error_label = tk.Label(self.items_scrollable_frame, 
+                                 text="Failed to load products - Database connection error",
+                                 font=('Segoe UI', 12),
+                                 fg='#e74c3c',
+                                 bg='white')
+            error_label.grid(row=0, column=0, columnspan=3, pady=20)
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load menu items: {str(e)}")
+            error_msg = f"Failed to load products: {str(e)}"
+            messagebox.showerror("Error", error_msg)
+            # Add fallback error label
+            error_label = tk.Label(self.items_scrollable_frame, 
+                                 text="Failed to load products - Please try again",
+                                 font=('Segoe UI', 12),
+                                 fg='#e74c3c',
+                                 bg='white')
+            error_label.grid(row=0, column=0, columnspan=3, pady=20)
 
     def search_items(self):
         """Search menu items based on the search entry"""

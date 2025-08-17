@@ -144,32 +144,64 @@ class AdminPanel:
     
     def switch_section(self, section):
         """Switch to different section"""
-        # Reset all button colors
-        for btn in self.nav_buttons.values():
-            btn.config(bg='#34495e')
+        try:
+            # Reset all button colors
+            for btn in self.nav_buttons.values():
+                btn.config(bg='#34495e')
+            
+            # Highlight current section
+            if section in self.nav_buttons:
+                self.nav_buttons[section].config(bg='#3498db')
+            
+            # Clear content area
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            # Show selected section
+            if section == "dashboard":
+                self.show_dashboard()
+            elif section == "menu":
+                self.show_menu_management()
+            elif section == "users":
+                self.show_user_management()
+            elif section == "financial":
+                self.show_financial_reports()
+            elif section == "orders":
+                self.show_orders_history()
+            elif section == "settings":
+                self.show_settings()
+            else:
+                # Fallback for unknown sections
+                self.show_error_section(f"Unknown section: {section}")
+                return
+            
+            self.current_section = section
+            
+        except Exception as e:
+            self.show_error_section(f"Navigation error: {str(e)}")
+    
+    def show_error_section(self, error_message):
+        """Show error section when navigation fails"""
+        error_frame = tk.Frame(self.content_area, bg='white')
+        error_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Highlight current section
-        self.nav_buttons[section].config(bg='#3498db')
+        # Error icon and message
+        error_label = tk.Label(error_frame, text="⚠️", font=('Segoe UI', 48), 
+                              bg='white', fg='#e74c3c')
+        error_label.pack(pady=(50, 20))
         
-        # Clear content area
-        for widget in self.content_area.winfo_children():
-            widget.destroy()
+        error_text = tk.Label(error_frame, text=error_message,
+                             font=('Segoe UI', 14), bg='white', fg='#e74c3c')
+        error_text.pack(pady=10)
         
-        # Show selected section
-        if section == "dashboard":
-            self.show_dashboard()
-        elif section == "menu":
-            self.show_menu_management()
-        elif section == "users":
-            self.show_user_management()
-        elif section == "financial":
-            self.show_financial_reports()
-        elif section == "orders":
-            self.show_orders_history()
-        elif section == "settings":
-            self.show_settings()
-        
-        self.current_section = section
+        # Retry button
+        retry_btn = tk.Button(error_frame, text="🔄 Return to Dashboard",
+                             command=lambda: self.switch_section("dashboard"),
+                             font=('Segoe UI', 12),
+                             bg='#3498db', fg='white',
+                             relief=tk.FLAT, padx=20, pady=10,
+                             cursor='hand2')
+        retry_btn.pack(pady=20)
     
     def show_dashboard(self):
         """Show the dashboard with statistics"""
@@ -247,24 +279,99 @@ class AdminPanel:
     
     def show_menu_management(self):
         """Show menu management interface"""
-        # Clear content area first
-        for widget in self.content_area.winfo_children():
-            widget.destroy()
-        MenuManagerTab(self.content_area)
+        try:
+            # Clear content area first
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            # Show loading indicator
+            loading_frame = tk.Frame(self.content_area, bg='white')
+            loading_frame.pack(fill=tk.BOTH, expand=True)
+            
+            loading_label = tk.Label(loading_frame, text="🔄 Loading Menu Management...",
+                                   font=('Segoe UI', 14),
+                                   bg='white', fg='#3498db')
+            loading_label.pack(expand=True)
+            
+            # Update the display
+            self.master.update()
+            
+            # Clear loading and show actual interface
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+                
+            MenuManagerTab(self.content_area)
+            
+        except Exception as e:
+            # Clear loading and show error
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            self.show_error_section(f"Failed to load menu management: {str(e)}")
     
     def show_user_management(self):
         """Show user management interface"""
-        # Clear content area first
-        for widget in self.content_area.winfo_children():
-            widget.destroy()
-        UserManagement(self.content_area, self.db_path)
+        try:
+            # Clear content area first
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            # Show loading indicator
+            loading_frame = tk.Frame(self.content_area, bg='white')
+            loading_frame.pack(fill=tk.BOTH, expand=True)
+            
+            loading_label = tk.Label(loading_frame, text="🔄 Loading User Management...",
+                                   font=('Segoe UI', 14),
+                                   bg='white', fg='#3498db')
+            loading_label.pack(expand=True)
+            
+            # Update the display
+            self.master.update()
+            
+            # Clear loading and show actual interface
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+                
+            UserManagement(self.content_area, self.db_path)
+            
+        except Exception as e:
+            # Clear loading and show error
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            self.show_error_section(f"Failed to load user management: {str(e)}")
     
     def show_financial_reports(self):
         """Show financial reports interface"""
-        # Clear content area first
-        for widget in self.content_area.winfo_children():
-            widget.destroy()
-        ReportsTab(self.content_area)
+        try:
+            # Clear content area first
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            # Show loading indicator
+            loading_frame = tk.Frame(self.content_area, bg='white')
+            loading_frame.pack(fill=tk.BOTH, expand=True)
+            
+            loading_label = tk.Label(loading_frame, text="🔄 Loading Financial Reports...",
+                                   font=('Segoe UI', 14),
+                                   bg='white', fg='#3498db')
+            loading_label.pack(expand=True)
+            
+            # Update the display
+            self.master.update()
+            
+            # Clear loading and show actual interface
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+                
+            ReportsTab(self.content_area)
+            
+        except Exception as e:
+            # Clear loading and show error
+            for widget in self.content_area.winfo_children():
+                widget.destroy()
+            
+            self.show_error_section(f"Failed to load financial reports: {str(e)}")
     
     def show_orders_history(self):
         """Show orders history interface"""
@@ -443,5 +550,31 @@ class AdminPanel:
     
     def logout(self):
         """Return to startup screen"""
-        from ui.startup_screen import StartupScreen
-        StartupScreen(self.master)
+        try:
+            from ui.startup_screen import StartupScreen
+            StartupScreen(self.master)
+        except Exception as e:
+            # Fallback if startup screen fails
+            messagebox.showerror("Navigation Error", 
+                               f"Cannot return to main menu: {str(e)}\n\n"
+                               f"Please restart the application.")
+            # Clear current content and show basic menu
+            for widget in self.master.winfo_children():
+                widget.destroy()
+            
+            # Create basic restart interface
+            restart_frame = tk.Frame(self.master, bg='#f8f9fa')
+            restart_frame.pack(fill=tk.BOTH, expand=True)
+            
+            message_label = tk.Label(restart_frame, 
+                                   text="⚠️ Navigation Error\n\nPlease restart the application",
+                                   font=('Segoe UI', 16),
+                                   bg='#f8f9fa', fg='#e74c3c')
+            message_label.pack(expand=True)
+            
+            restart_btn = tk.Button(restart_frame, text="🔄 Restart Application",
+                                  command=self.master.quit,
+                                  font=('Segoe UI', 12),
+                                  bg='#3498db', fg='white',
+                                  relief=tk.FLAT, padx=20, pady=10)
+            restart_btn.pack(pady=20)
