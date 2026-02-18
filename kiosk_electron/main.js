@@ -12,27 +12,24 @@ function getDatabasePath() {
 
 function executeQuery(query, params = []) {
     const dbPath = getDatabasePath();
+    const db = new Database(dbPath, { readonly: true });
     try {
-        const db = new Database(dbPath, { readonly: true });
         const stmt = db.prepare(query);
-        const rows = stmt.all(...params);
+        return stmt.all(...params);
+    } finally {
         db.close();
-        return rows;
-    } catch (err) {
-        throw err;
     }
 }
 
-function runQuery(query, params = []) {
+async function runQuery(query, params = []) {
     const dbPath = getDatabasePath();
+    const db = new Database(dbPath);
     try {
-        const db = new Database(dbPath);
         const stmt = db.prepare(query);
         const info = stmt.run(...params);
+        return { lastID: info.lastInsertRowid, changes: info.changes };
+    } finally {
         db.close();
-        return Promise.resolve({ lastID: info.lastInsertRowid, changes: info.changes });
-    } catch (err) {
-        return Promise.reject(err);
     }
 }
 
@@ -446,11 +443,16 @@ class POSKioskApp {
         });
         
         ipcMain.handle('set-db-path', (event, dbPath) => {
-            // Validate that the path points to an existing .db file
+            // Validate that the path points to an existing .db file within the app directory
             if (typeof dbPath !== 'string' || !dbPath.endsWith('.db') || !fs.existsSync(dbPath)) {
                 throw new Error('Invalid database path');
             }
-            store.set('dbPath', dbPath);
+            const resolvedPath = path.resolve(dbPath);
+            const appDir = path.resolve(__dirname, '..');
+            if (!resolvedPath.startsWith(appDir)) {
+                throw new Error('Database path must be within the application directory');
+            }
+            store.set('dbPath', resolvedPath);
         });
 
         // Database operations for kiosk
