@@ -18,9 +18,10 @@ from .user_management import UserManagement
 from .reports_screen import ReportsTab
 
 class AdminPanel:
-    def __init__(self, master, db_path):
+    def __init__(self, master, db_path, user=None):
         self.master = master
         self.db_path = db_path
+        self.user = user
         self.current_section = "dashboard"
         self.setup_ui()
         
@@ -71,7 +72,8 @@ class AdminPanel:
         user_frame = tk.Frame(header_frame, bg='#2c3e50')
         user_frame.pack(side=tk.RIGHT, padx=20, pady=25)
         
-        user_label = tk.Label(user_frame, text="👤 Admin User", 
+        user_display = self.user.get('full_name', 'Admin User') if self.user else 'Admin User'
+        user_label = tk.Label(user_frame, text=f"👤 {user_display}", 
                              font=('Segoe UI', 12), 
                              fg='white', bg='#2c3e50')
         user_label.pack(side=tk.LEFT, padx=(0, 15))
