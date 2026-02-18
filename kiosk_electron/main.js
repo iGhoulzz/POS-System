@@ -198,7 +198,7 @@ class POSKioskApp {
             show: false,
             autoHideMenuBar: true,
             titleBarStyle: 'hidden',
-            backgroundColor: '#ffffff'
+            backgroundColor: '#0B0E14'
         };
 
         // Kiosk mode settings

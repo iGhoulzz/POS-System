@@ -3,6 +3,8 @@ Point of Sale Screen - Cashier interface
 """
 
 import os
+import sys
+import subprocess
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List
@@ -374,7 +376,12 @@ class POSTab:
             if printer.generate_receipt_pdf(order, order_items, receipt_path):
                 # Option to view receipt
                 if messagebox.askyesno("Receipt", "Receipt saved. Would you like to view it?"):
-                    os.startfile(receipt_path)  # Windows
+                    if sys.platform == 'win32':
+                        os.startfile(receipt_path)
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', receipt_path])
+                    else:
+                        subprocess.Popen(['xdg-open', receipt_path])
             
         except Exception as e:
             print(f"Error printing receipt: {e}")
