@@ -107,7 +107,9 @@ class LoginScreen:
                 from ui.admin.kitchen_panel import KitchenPanel
                 KitchenPanel(self.parent, db_path, user)
             else:
-                messagebox.showerror("Error", f"Unknown user role: {role}")
+                messagebox.showerror("Error", f"Unknown user role: {role}. Please contact your administrator.")
+                from ui.startup_screen import StartupScreen
+                StartupScreen(self.parent)
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open main interface: {str(e)}")
             print(f"Error opening main interface: {e}")
