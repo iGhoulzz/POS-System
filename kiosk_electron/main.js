@@ -15,32 +15,25 @@ function executeQuery(query, params = []) {
     try {
         const db = new Database(dbPath, { readonly: true });
         const stmt = db.prepare(query);
-        const rows = stmt.all(params);
+        const rows = stmt.all(...params);
         db.close();
-        return Promise.resolve(rows);
+        return rows;
     } catch (err) {
-        return Promise.reject(err);
+        throw err;
     }
 }
 
 function runQuery(query, params = []) {
     const dbPath = getDatabasePath();
-    return new Promise((resolve, reject) => {
-        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
-            if (err) {
-                return reject(err);
-            }
-        });
-
-        db.run(query, params, function (err) {
-            const info = { lastID: this.lastID, changes: this.changes };
-            db.close();
-            if (err) {
-                return reject(err);
-            }
-            resolve(info);
-        });
-    });
+    try {
+        const db = new Database(dbPath);
+        const stmt = db.prepare(query);
+        const info = stmt.run(...params);
+        db.close();
+        return Promise.resolve({ lastID: info.lastInsertRowid, changes: info.changes });
+    } catch (err) {
+        return Promise.reject(err);
+    }
 }
 
 // Fix 1: Set app data path to avoid permission issues
@@ -57,7 +50,7 @@ app.disableHardwareAcceleration();
 app.setAppUserModelId('pos-v2-kiosk');
 
 // Fix 4: Additional Chromium flags to prevent quota database issues
-app.commandLine.appendSwitch('--disable-web-security');
+// web security is enabled by default; do not disable it
 app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
 app.commandLine.appendSwitch('--disable-quota-management');
 app.commandLine.appendSwitch('--disable-storage-quota-database');
@@ -128,7 +121,7 @@ class POSKioskApp {
                 preload: path.join(__dirname, 'preload.js'),
                 // Fix 5: Use temporary session to avoid quota database persistence
                 partition: 'temp:kiosk-session',
-                webSecurity: false, // Relaxed for kiosk mode
+                webSecurity: true,
                 allowRunningInsecureContent: false,
                 experimentalFeatures: false,
                 // Disable problematic features to prevent quota issues
@@ -268,13 +261,8 @@ class POSKioskApp {
         ipcMain.handle('database:getCategories', async () => {
             try {
                 console.log('🔍 Fetching categories from database...');
-                // Mock data for now - replace with actual database call
-                const categories = [
-                    { id: 1, name: 'Appetizers', description: 'Start your meal', is_active: 1 },
-                    { id: 2, name: 'Main Courses', description: 'Hearty dishes', is_active: 1 },
-                    { id: 3, name: 'Beverages', description: 'Drinks & more', is_active: 1 },
-                    { id: 4, name: 'Desserts', description: 'Sweet endings', is_active: 1 }
-                ];
+                const query = `SELECT id, name, description, is_active FROM categories WHERE is_active = 1 ORDER BY name`;
+                const categories = executeQuery(query);
                 console.log('✅ Categories fetched successfully:', categories.length);
                 return categories;
             } catch (error) {
@@ -286,40 +274,17 @@ class POSKioskApp {
         ipcMain.handle('database:getMenuItems', async (event, categoryId) => {
             try {
                 console.log('🔍 Fetching menu items for category:', categoryId);
-                // Mock data for now - replace with actual database call
-                const mockItems = [
-                    { 
-                        id: 1, 
-                        name: 'Chicken Wings', 
-                        description: 'Spicy buffalo wings with ranch dip', 
-                        sell_price: 12.99, 
-                        category_id: 1,
-                        image_path: null,
-                        is_active: 1 
-                    },
-                    { 
-                        id: 2, 
-                        name: 'Caesar Salad', 
-                        description: 'Fresh romaine with parmesan and croutons', 
-                        sell_price: 9.99, 
-                        category_id: 1,
-                        image_path: null,
-                        is_active: 1 
-                    },
-                    { 
-                        id: 3, 
-                        name: 'Grilled Salmon', 
-                        description: 'Atlantic salmon with seasonal vegetables', 
-                        sell_price: 24.99, 
-                        category_id: 2,
-                        image_path: null,
-                        is_active: 1 
-                    }
-                ];
-                
-                const filteredItems = categoryId ? mockItems.filter(item => item.category_id === categoryId) : mockItems;
-                console.log('✅ Menu items fetched successfully:', filteredItems.length);
-                return filteredItems;
+                let query, params;
+                if (categoryId) {
+                    query = `SELECT id, name, description, price AS sell_price, category_id, image_path, is_active FROM menu_items WHERE is_active = 1 AND category_id = ? ORDER BY name`;
+                    params = [categoryId];
+                } else {
+                    query = `SELECT id, name, description, price AS sell_price, category_id, image_path, is_active FROM menu_items WHERE is_active = 1 ORDER BY name`;
+                    params = [];
+                }
+                const items = executeQuery(query, params);
+                console.log('✅ Menu items fetched successfully:', items.length);
+                return items;
             } catch (error) {
                 console.error('❌ Database error getting menu items:', error);
                 return [];
@@ -329,14 +294,36 @@ class POSKioskApp {
         ipcMain.handle('database:createOrder', async (event, orderData) => {
             try {
                 console.log('📝 Creating order:', orderData);
-                // Mock order creation - replace with actual database call
-                const result = { 
-                    success: true, 
-                    orderId: Math.floor(Math.random() * 10000),
-                    message: 'Order placed successfully'
-                };
-                console.log('✅ Order created successfully:', result.orderId);
-                return result;
+                const orderNumber = `ORD-${Date.now()}`;
+                const insertOrder = `INSERT INTO orders (order_number, customer_name, order_type, total_amount, tax_amount, payment_method, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+                const result = await runQuery(insertOrder, [
+                    orderNumber,
+                    orderData.customer_name || '',
+                    orderData.order_type || 'dine_in',
+                    orderData.total || 0,
+                    orderData.tax || 0,
+                    orderData.payment_method || 'cash',
+                    orderData.created_by || 1
+                ]);
+
+                const orderId = result.lastID;
+
+                if (orderData.items && Array.isArray(orderData.items)) {
+                    for (const item of orderData.items) {
+                        const insertItem = `INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price, special_instructions) VALUES (?, ?, ?, ?, ?, ?)`;
+                        await runQuery(insertItem, [
+                            orderId,
+                            item.item_id || item.id,
+                            item.quantity,
+                            item.price,
+                            item.quantity * item.price,
+                            item.special_instructions || ''
+                        ]);
+                    }
+                }
+
+                console.log('✅ Order created successfully:', orderId);
+                return { success: true, orderId, orderNumber, message: 'Order placed successfully' };
             } catch (error) {
                 console.error('❌ Database error creating order:', error);
                 return { success: false, message: error.message };
@@ -459,6 +446,10 @@ class POSKioskApp {
         });
         
         ipcMain.handle('set-db-path', (event, dbPath) => {
+            // Validate that the path points to an existing .db file
+            if (typeof dbPath !== 'string' || !dbPath.endsWith('.db') || !fs.existsSync(dbPath)) {
+                throw new Error('Invalid database path');
+            }
             store.set('dbPath', dbPath);
         });
 

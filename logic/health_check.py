@@ -51,7 +51,7 @@ class HealthChecker:
             end_time = time.time()
             
             query_time = end_time - start_time
-            if query_time > 5.0:
+            if query_time > 1.0:
                 return False, f"Database queries are slow ({query_time:.2f}s)"
             else:
                 return True, f"Database performance OK ({query_time:.3f}s)"

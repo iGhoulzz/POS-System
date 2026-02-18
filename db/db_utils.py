@@ -42,10 +42,10 @@ def execute_query(query: str, params: tuple = None, fetch: str = None) -> Any:
     Returns:
         Query result, rowcount for DELETE/UPDATE operations, or None
     """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
+    conn = None
     try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
         if params:
             cursor.execute(query, params)
         else:
@@ -67,10 +67,12 @@ def execute_query(query: str, params: tuple = None, fetch: str = None) -> Any:
         return result
     
     except Exception as e:
-        conn.rollback()
+        if conn:
+            conn.rollback()
         raise e
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def dict_factory(cursor, row):
     """Row factory to return dictionaries instead of tuples"""
@@ -153,13 +155,18 @@ def backup_database(backup_path: str) -> bool:
     Returns:
         True if successful, False otherwise
     """
+    source_conn = None
+    backup_conn = None
     try:
         source_conn = get_db_connection()
         backup_conn = sqlite3.connect(backup_path)
         source_conn.backup(backup_conn)
-        source_conn.close()
-        backup_conn.close()
         return True
     except Exception as e:
         print(f"Backup failed: {e}")
         return False
+    finally:
+        if backup_conn:
+            backup_conn.close()
+        if source_conn:
+            source_conn.close()
