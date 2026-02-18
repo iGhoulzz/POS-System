@@ -16,7 +16,7 @@ class OrderManager:
     
     @staticmethod
     def create_order(customer_name: str, order_type: str, items: List[Dict], 
-                    payment_method: str, created_by: int, tax_rate: float = 0.08) -> Optional[int]:
+                    payment_method: str, created_by: int, tax_rate: float = 0.08) -> Optional[Dict]:
         """
         Create a new order
         
@@ -29,7 +29,7 @@ class OrderManager:
             tax_rate: Tax rate to apply
         
         Returns:
-            Order ID if successful, None otherwise
+            Dictionary with order_id and order_number if successful, None otherwise
         """
         try:
             # Calculate totals
@@ -64,7 +64,7 @@ class OrderManager:
                                          item['unit_price'], item_total, 
                                          item.get('special_instructions', '')))
             
-            return order_id
+            return {'order_id': order_id, 'order_number': order_number}
         
         except Exception as e:
             print(f"Error creating order: {e}")

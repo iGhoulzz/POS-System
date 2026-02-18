@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, date
 import os
 import sys
+import subprocess
 
 # Add the project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -530,7 +531,12 @@ class AdminPanel:
             printer = InvoicePrinter()
             if printer.generate_receipt_pdf(order, items, receipt_path):
                 messagebox.showinfo("Success", f"Invoice saved to:\n{receipt_path}")
-                os.startfile(receipt_path)
+                if sys.platform == 'win32':
+                    os.startfile(receipt_path)
+                elif sys.platform == 'darwin':
+                    subprocess.Popen(['open', receipt_path])
+                else:
+                    subprocess.Popen(['xdg-open', receipt_path])
             else:
                 messagebox.showerror("Error", "Failed to generate invoice PDF.")
         except Exception as e:

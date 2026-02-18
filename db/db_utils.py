@@ -31,7 +31,7 @@ def execute_query(query: str, params: tuple = None, fetch: str = None) -> Any:
     cursor = conn.cursor()
     
     try:
-        if params:
+        if params is not None:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
@@ -86,7 +86,7 @@ def execute_query_dict(query: str, params: tuple = None, fetch: str = None) -> A
     cursor = conn.cursor()
     
     try:
-        if params:
+        if params is not None:
             cursor.execute(query, params)
         else:
             cursor.execute(query)
