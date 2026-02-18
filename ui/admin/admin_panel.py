@@ -10,6 +10,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 sys.path.insert(0, project_root)
 
 from logic.utils import POSUtils
+from logic.order_manager import OrderManager
+from logic.invoice_printer import InvoicePrinter
 from .menu_manager import MenuManagerTab
 from .user_management import UserManagement
 from .reports_screen import ReportsTab
@@ -265,41 +267,288 @@ class AdminPanel:
         ReportsTab(self.content_area)
     
     def show_orders_history(self):
-        """Show orders history interface"""
-        header = tk.Label(self.content_area, text="📋 Orders History", 
-                         font=('Segoe UI', 16, 'bold'),
-                         bg='white', fg='#2c3e50')
-        header.pack(pady=20)
-        
-        # Orders list (placeholder)
-        orders_frame = tk.Frame(self.content_area, bg='white')
-        orders_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
-        
-        # Create treeview for orders
-        columns = ('Order ID', 'Date', 'Customer', 'Items', 'Total', 'Status')
-        tree = ttk.Treeview(orders_frame, columns=columns, show='headings', height=15)
-        
-        # Define headings
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=120, anchor='center')
-        
-        # Sample data (replace with real data)
-        sample_orders = [
-            ('ORD-001', '2025-06-02', 'John Doe', '3', POSUtils.format_currency(25.50), 'Completed'),
-            ('ORD-002', '2025-06-02', 'Jane Smith', '2', POSUtils.format_currency(18.75), 'Completed'),
-            ('ORD-003', '2025-06-02', 'Bob Johnson', '5', POSUtils.format_currency(42.30), 'Pending')
+        """Show orders history interface with real data"""
+        self._orders_auto_refresh = True
+
+        # Header row
+        header_frame = tk.Frame(self.content_area, bg='white')
+        header_frame.pack(fill=tk.X, padx=20, pady=(20, 10))
+
+        tk.Label(header_frame, text="📋 Orders History",
+                 font=('Segoe UI', 16, 'bold'),
+                 bg='white', fg='#2c3e50').pack(side=tk.LEFT)
+
+        # Refresh button
+        refresh_btn = tk.Button(header_frame, text="🔄 Refresh",
+                                command=self._refresh_orders,
+                                font=('Segoe UI', 10),
+                                bg='#3498db', fg='white',
+                                relief=tk.FLAT, padx=10, pady=3, cursor='hand2')
+        refresh_btn.pack(side=tk.RIGHT, padx=5)
+
+        # Date filter
+        filter_frame = tk.Frame(self.content_area, bg='white')
+        filter_frame.pack(fill=tk.X, padx=20, pady=(0, 10))
+
+        tk.Label(filter_frame, text="Filter:", font=('Segoe UI', 10),
+                 bg='white', fg='#2c3e50').pack(side=tk.LEFT, padx=(0, 5))
+
+        self._order_filter_var = tk.StringVar(value='today')
+        filter_combo = ttk.Combobox(filter_frame, textvariable=self._order_filter_var,
+                                    values=['today', 'this_week', 'this_month', 'all'],
+                                    state='readonly', width=15)
+        filter_combo.pack(side=tk.LEFT)
+        filter_combo.bind('<<ComboboxSelected>>', lambda e: self._refresh_orders())
+
+        # Orders treeview
+        tree_frame = tk.Frame(self.content_area, bg='white')
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 10))
+
+        columns = ('order_number', 'date', 'customer', 'type', 'total', 'tax', 'status')
+        self._orders_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=15)
+
+        col_config = [
+            ('order_number', 'Order #', 130),
+            ('date', 'Date / Time', 150),
+            ('customer', 'Customer', 130),
+            ('type', 'Type', 80),
+            ('total', 'Total', 100),
+            ('tax', 'Tax', 80),
+            ('status', 'Status', 90)
         ]
-        
-        for order in sample_orders:
-            tree.insert('', tk.END, values=order)
-        
-        tree.pack(fill=tk.BOTH, expand=True)
-        
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(orders_frame, orient=tk.VERTICAL, command=tree.yview)
+        for col_id, heading, width in col_config:
+            self._orders_tree.heading(col_id, text=heading)
+            self._orders_tree.column(col_id, width=width, anchor='center')
+
+        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self._orders_tree.yview)
+        self._orders_tree.configure(yscrollcommand=scrollbar.set)
+        self._orders_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        tree.configure(yscrollcommand=scrollbar.set)
+
+        # Action buttons
+        actions_frame = tk.Frame(self.content_area, bg='white')
+        actions_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+
+        view_btn = tk.Button(actions_frame, text="📄 View Details",
+                             command=self._view_order_details,
+                             font=('Segoe UI', 10), bg='#2ecc71', fg='white',
+                             relief=tk.FLAT, padx=15, pady=5, cursor='hand2')
+        view_btn.pack(side=tk.LEFT, padx=5)
+
+        print_btn = tk.Button(actions_frame, text="🖨️ Print Invoice",
+                              command=self._print_order_invoice,
+                              font=('Segoe UI', 10), bg='#e67e22', fg='white',
+                              relief=tk.FLAT, padx=15, pady=5, cursor='hand2')
+        print_btn.pack(side=tk.LEFT, padx=5)
+
+        status_btn = tk.Button(actions_frame, text="✅ Mark Completed",
+                               command=self._mark_order_completed,
+                               font=('Segoe UI', 10), bg='#9b59b6', fg='white',
+                               relief=tk.FLAT, padx=15, pady=5, cursor='hand2')
+        status_btn.pack(side=tk.LEFT, padx=5)
+
+        # Load orders
+        self._refresh_orders()
+
+        # Start auto-refresh
+        self._schedule_orders_refresh()
+
+    def _get_date_range(self):
+        """Get date range based on filter selection"""
+        from datetime import timedelta
+        today = date.today()
+        filter_val = self._order_filter_var.get() if hasattr(self, '_order_filter_var') else 'today'
+
+        if filter_val == 'today':
+            return today.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+        elif filter_val == 'this_week':
+            start = today - timedelta(days=today.weekday())
+            return start.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+        elif filter_val == 'this_month':
+            start = today.replace(day=1)
+            return start.strftime('%Y-%m-%d'), today.strftime('%Y-%m-%d')
+        else:  # all
+            return '2000-01-01', today.strftime('%Y-%m-%d')
+
+    def _refresh_orders(self):
+        """Fetch and display orders from the database"""
+        if not hasattr(self, '_orders_tree'):
+            return
+        try:
+            # Clear tree
+            for item in self._orders_tree.get_children():
+                self._orders_tree.delete(item)
+
+            start_date, end_date = self._get_date_range()
+
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT o.id, o.order_number, o.created_at, o.customer_name,
+                       o.order_type, o.total_amount, o.tax_amount, o.status
+                FROM orders o
+                WHERE DATE(o.created_at) BETWEEN ? AND ?
+                ORDER BY o.created_at DESC
+            """, (start_date, end_date))
+            orders = cursor.fetchall()
+            conn.close()
+
+            for order in orders:
+                oid = order['id']
+                order_num = order['order_number'] or f'#{oid}'
+                created = order['created_at'] or ''
+                customer = order['customer_name'] or 'Walk-in'
+                o_type = (order['order_type'] or '').replace('_', ' ').title()
+                total = POSUtils.format_currency(order['total_amount'] or 0)
+                tax = POSUtils.format_currency(order['tax_amount'] or 0)
+                status = (order['status'] or 'pending').title()
+
+                tag = 'completed' if status == 'Completed' else 'pending' if status == 'Pending' else ''
+                self._orders_tree.insert('', tk.END, iid=str(oid),
+                                        values=(order_num, created, customer, o_type, total, tax, status),
+                                        tags=(tag,))
+
+            self._orders_tree.tag_configure('completed', foreground='#27ae60')
+            self._orders_tree.tag_configure('pending', foreground='#e67e22')
+
+        except Exception as e:
+            print(f"Error loading orders: {e}")
+
+    def _schedule_orders_refresh(self):
+        """Auto-refresh orders every 30 seconds"""
+        if hasattr(self, '_orders_auto_refresh') and self._orders_auto_refresh and self.current_section == 'orders':
+            self._refresh_orders()
+            self.content_area.after(30000, self._schedule_orders_refresh)
+
+    def _get_selected_order_id(self):
+        """Get the selected order ID from the treeview"""
+        selection = self._orders_tree.selection()
+        if not selection:
+            from tkinter import messagebox
+            messagebox.showwarning("Warning", "Please select an order first.")
+            return None
+        return int(selection[0])
+
+    def _view_order_details(self):
+        """Show order details in a popup"""
+        from tkinter import messagebox
+        order_id = self._get_selected_order_id()
+        if not order_id:
+            return
+
+        order = OrderManager.get_order_by_id(order_id)
+        items = OrderManager.get_order_items(order_id)
+
+        if not order:
+            messagebox.showerror("Error", "Order not found.")
+            return
+
+        # Build detail window
+        detail_win = tk.Toplevel(self.master)
+        detail_win.title(f"Order Details — {order['order_number']}")
+        detail_win.geometry("500x450")
+        detail_win.configure(bg='white')
+        detail_win.resizable(False, False)
+        detail_win.grab_set()
+
+        # Order info
+        info_frame = tk.Frame(detail_win, bg='white', padx=20, pady=15)
+        info_frame.pack(fill=tk.X)
+
+        info_lines = [
+            ("Order #:", order['order_number']),
+            ("Date:", order.get('created_at', '')),
+            ("Customer:", order.get('customer_name', 'Walk-in') or 'Walk-in'),
+            ("Type:", (order.get('order_type', '') or '').replace('_', ' ').title()),
+            ("Payment:", order.get('payment_method', 'N/A') or 'N/A'),
+            ("Status:", (order.get('status', 'pending') or 'pending').title()),
+        ]
+        for label, value in info_lines:
+            row = tk.Frame(info_frame, bg='white')
+            row.pack(fill=tk.X, pady=2)
+            tk.Label(row, text=label, font=('Segoe UI', 10, 'bold'),
+                     bg='white', fg='#2c3e50', width=12, anchor='w').pack(side=tk.LEFT)
+            tk.Label(row, text=str(value), font=('Segoe UI', 10),
+                     bg='white', fg='#555').pack(side=tk.LEFT)
+
+        # Items table
+        tk.Label(detail_win, text="Order Items", font=('Segoe UI', 12, 'bold'),
+                 bg='white', fg='#2c3e50').pack(pady=(10, 5))
+
+        items_frame = tk.Frame(detail_win, bg='white')
+        items_frame.pack(fill=tk.BOTH, expand=True, padx=20)
+
+        item_cols = ('item', 'qty', 'price', 'total')
+        items_tree = ttk.Treeview(items_frame, columns=item_cols, show='headings', height=8)
+        for cid, heading, w in [('item', 'Item', 200), ('qty', 'Qty', 50),
+                                 ('price', 'Price', 80), ('total', 'Total', 80)]:
+            items_tree.heading(cid, text=heading)
+            items_tree.column(cid, width=w, anchor='center' if cid != 'item' else 'w')
+
+        for it in items:
+            items_tree.insert('', tk.END, values=(
+                it.get('item_name', 'Unknown'),
+                it.get('quantity', 0),
+                POSUtils.format_currency(it.get('unit_price', 0)),
+                POSUtils.format_currency(it.get('total_price', 0))
+            ))
+        items_tree.pack(fill=tk.BOTH, expand=True)
+
+        # Totals
+        totals_frame = tk.Frame(detail_win, bg='#f0f0f0', padx=20, pady=10)
+        totals_frame.pack(fill=tk.X)
+        tax_amt = order.get('tax_amount', 0) or 0
+        total_amt = order.get('total_amount', 0) or 0
+        subtotal = total_amt - tax_amt
+        tk.Label(totals_frame, text=f"Subtotal: {POSUtils.format_currency(subtotal)}   |   "
+                 f"Tax: {POSUtils.format_currency(tax_amt)}   |   "
+                 f"Total: {POSUtils.format_currency(total_amt)}",
+                 font=('Segoe UI', 11, 'bold'), bg='#f0f0f0', fg='#2c3e50').pack()
+
+        tk.Button(detail_win, text="Close", command=detail_win.destroy,
+                  font=('Segoe UI', 10), bg='#e74c3c', fg='white',
+                  relief=tk.FLAT, padx=20, pady=5, cursor='hand2').pack(pady=10)
+
+    def _print_order_invoice(self):
+        """Generate and open PDF invoice for selected order"""
+        from tkinter import messagebox
+        order_id = self._get_selected_order_id()
+        if not order_id:
+            return
+
+        order = OrderManager.get_order_by_id(order_id)
+        items = OrderManager.get_order_items(order_id)
+
+        if not order:
+            messagebox.showerror("Error", "Order not found.")
+            return
+
+        try:
+            os.makedirs("receipts", exist_ok=True)
+            receipt_path = f"receipts/receipt_{order['order_number']}.pdf"
+            printer = InvoicePrinter()
+            if printer.generate_receipt_pdf(order, items, receipt_path):
+                messagebox.showinfo("Success", f"Invoice saved to:\n{receipt_path}")
+                os.startfile(receipt_path)
+            else:
+                messagebox.showerror("Error", "Failed to generate invoice PDF.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Invoice error: {e}")
+
+    def _mark_order_completed(self):
+        """Mark a selected order as completed"""
+        from tkinter import messagebox
+        order_id = self._get_selected_order_id()
+        if not order_id:
+            return
+
+        if messagebox.askyesno("Confirm", "Mark this order as completed?"):
+            if OrderManager.update_order_status(order_id, 'completed'):
+                messagebox.showinfo("Success", "Order marked as completed.")
+                self._refresh_orders()
+            else:
+                messagebox.showerror("Error", "Failed to update order status.")
     
     def show_settings(self):
         """Show settings interface"""

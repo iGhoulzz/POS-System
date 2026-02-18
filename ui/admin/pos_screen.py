@@ -2,6 +2,7 @@
 Point of Sale Screen - Cashier interface
 """
 
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, List
@@ -365,12 +366,11 @@ class POSTab:
     def print_receipt(self, order, order_items):
         """Print receipt for order"""
         try:
-            printer = InvoicePrinter()
-            
             # Save receipt as PDF
             receipt_path = f"receipts/receipt_{order['order_number']}.pdf"
             os.makedirs("receipts", exist_ok=True)
             
+            printer = InvoicePrinter()
             if printer.generate_receipt_pdf(order, order_items, receipt_path):
                 # Option to view receipt
                 if messagebox.askyesno("Receipt", "Receipt saved. Would you like to view it?"):

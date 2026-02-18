@@ -9,46 +9,46 @@ class KioskApp {
         this.cart = [];
         this.cartTotal = 0;
         this.isLoading = false;
-        
+        this.taxRate = 0.08; // Default, will be loaded from settings
+
         this.init();
     }
 
     async init() {
         try {
             console.log('🚀 Initializing Kiosk App...');
-            
+
             // Wait for DOM to be ready
             if (document.readyState === 'loading') {
                 await new Promise(resolve => {
                     document.addEventListener('DOMContentLoaded', resolve);
                 });
             }
-            
+
             // Initialize current time display
             this.updateCurrentTime();
             setInterval(() => this.updateCurrentTime(), 1000);
-            
-            // Start the app flow immediately
-            console.log('📺 Showing loading screen...');
+
+            // Show loading screen
             this.showLoadingScreen();
-            
+
+            // Load settings (tax rate etc.)
+            await this.loadSettings();
+
             // Load initial data
-            console.log('📊 Loading categories and menu items...');
             await this.loadCategories();
             await this.loadMenuItems();
-            
+
             console.log('✅ Data loaded successfully');
-            
+
             // Initialize event listeners AFTER data is loaded
-            console.log('🎧 Setting up event listeners...');
             this.initializeEventListeners();
-            
-            // Shorter loading time for better UX
+
+            // Transition to order type screen
             setTimeout(() => {
-                console.log('🎯 Transitioning to order type screen...');
                 this.showOrderTypeScreen();
             }, 1500);
-            
+
         } catch (error) {
             console.error('❌ Failed to initialize kiosk:', error);
             this.showError('Failed to initialize. Please contact staff.');
@@ -56,12 +56,12 @@ class KioskApp {
     }
 
     initializeEventListeners() {
-        console.log('🎧 Setting up all event listeners...');
-        
+        console.log('🎧 Setting up event listeners...');
+
         // Order type selection
         document.querySelectorAll('.order-type-card').forEach(card => {
             card.addEventListener('click', (e) => {
-                console.log('🎯 Order type selected:', card.dataset.type);
+                e.stopPropagation();
                 this.selectOrderType(card.dataset.type);
             });
         });
@@ -70,43 +70,16 @@ class KioskApp {
         const backBtn = document.getElementById('back-btn');
         if (backBtn) {
             backBtn.addEventListener('click', (e) => {
-                console.log('⬅️ Back button clicked');
+                e.stopPropagation();
                 this.showOrderTypeScreen();
-            });
-        }
-
-        // Category selection using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.category-item')) {
-                const categoryId = e.target.closest('.category-item').dataset.categoryId;
-                console.log('📂 Category selected:', categoryId);
-                this.selectCategory(categoryId);
-            }
-        });
-
-        // Menu item clicks using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.menu-item')) {
-                const itemId = e.target.closest('.menu-item').dataset.itemId;
-                console.log('🍔 Menu item selected:', itemId);
-                this.showItemDetail(itemId);
-            }
-        });
-
-        // Add to cart from modal
-        const addToCartBtn = document.getElementById('add-to-cart-btn');
-        if (addToCartBtn) {
-            addToCartBtn.addEventListener('click', () => {
-                console.log('🛒 Add to cart clicked');
-                this.addToCartFromModal();
             });
         }
 
         // Cart button
         const cartBtn = document.getElementById('cart-btn');
         if (cartBtn) {
-            cartBtn.addEventListener('click', () => {
-                console.log('🛒 Cart button clicked');
+            cartBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.showPaymentScreen();
             });
         }
@@ -114,106 +87,141 @@ class KioskApp {
         // Back button on payment screen
         const paymentBackBtn = document.getElementById('payment-back-btn');
         if (paymentBackBtn) {
-            paymentBackBtn.addEventListener('click', () => {
-                console.log('⬅️ Payment back button clicked');
+            paymentBackBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.showDashboard();
             });
         }
 
-        // Modal close functionality
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal') || e.target.closest('.modal-close')) {
-                console.log('❌ Modal close clicked');
+        // Add to cart from modal
+        const addToCartBtn = document.getElementById('add-to-cart-btn');
+        if (addToCartBtn) {
+            addToCartBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.addToCartFromModal();
+            });
+        }
+
+        // Modal close button
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        if (modalCloseBtn) {
+            modalCloseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.closeModal();
-            }
-        });
+            });
+        }
+
+        // Modal backdrop click to close
+        const modal = document.getElementById('item-modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                // Only close if clicking the backdrop itself, not content inside
+                if (e.target === modal) {
+                    this.closeModal();
+                }
+            });
+        }
 
         // Quantity controls in modal
         const quantityMinus = document.getElementById('quantity-decrease');
         const quantityPlus = document.getElementById('quantity-increase');
-        
+
         if (quantityMinus) {
-            quantityMinus.addEventListener('click', () => {
-                console.log('➖ Quantity decrease clicked');
+            quantityMinus.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.adjustModalQuantity(-1);
             });
         }
-        
+
         if (quantityPlus) {
-            quantityPlus.addEventListener('click', () => {
-                console.log('➕ Quantity increase clicked');
+            quantityPlus.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.adjustModalQuantity(1);
             });
         }
 
-        // Payment methods using event delegation
-        document.addEventListener('click', (e) => {
-            if (e.target.closest('.payment-method-btn')) {
-                const method = e.target.closest('.payment-method-btn').dataset.method;
-                console.log('💳 Payment method selected:', method);
-                this.selectPaymentMethod(method);
-            }
-        });
-
         // Place order button
         const placeOrderBtn = document.getElementById('place-order-btn');
         if (placeOrderBtn) {
-            placeOrderBtn.addEventListener('click', () => {
-                console.log('✅ Place order clicked');
+            placeOrderBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 this.placeOrder();
             });
         }
 
-        // Cart item quantity controls using event delegation
+        // New order button (on success screen)
+        const newOrderBtn = document.getElementById('new-order-btn');
+        if (newOrderBtn) {
+            newOrderBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (this.countdownInterval) clearInterval(this.countdownInterval);
+                this.resetKiosk();
+            });
+        }
+
+        // Single delegated click handler for dynamically-created elements
+        // Uses a priority-based approach to avoid conflicts
         document.addEventListener('click', (e) => {
-            if (e.target.closest('.quantity-btn')) {
-                const btn = e.target.closest('.quantity-btn');
-                const itemIndex = parseInt(btn.dataset.index);
-                const action = btn.dataset.action;
-                console.log('🔢 Cart quantity changed:', action, itemIndex);
+            // Priority 1: Cart item controls (on payment screen)
+            const quantityBtn = e.target.closest('.cart-item-controls .quantity-btn, .cart-item-controls .remove-btn');
+            if (quantityBtn) {
+                e.stopPropagation();
+                const itemIndex = parseInt(quantityBtn.dataset.index);
+                const action = quantityBtn.dataset.action;
                 this.updateCartItemQuantity(itemIndex, action);
+                return;
+            }
+
+            // Priority 2: Payment method buttons
+            const paymentBtn = e.target.closest('.payment-method-btn');
+            if (paymentBtn) {
+                e.stopPropagation();
+                this.selectPaymentMethod(paymentBtn.dataset.method);
+                return;
+            }
+
+            // Priority 3: Category items (sidebar)
+            const categoryItem = e.target.closest('.category-item');
+            if (categoryItem && !e.target.closest('.menu-items-section')) {
+                e.stopPropagation();
+                this.selectCategory(categoryItem.dataset.categoryId);
+                return;
+            }
+
+            // Priority 4: Menu items (grid)
+            const menuItem = e.target.closest('.menu-item');
+            if (menuItem) {
+                e.stopPropagation();
+                this.showItemDetail(menuItem.dataset.itemId);
+                return;
             }
         });
-        
+
         console.log('✅ All event listeners set up successfully');
     }
 
     // Screen Management
     showScreen(screenId) {
-        console.log(`🖥️ Switching to screen: ${screenId}`);
-        
-        // Hide all screens
-        const allScreens = document.querySelectorAll('.screen');
-        console.log(`📱 Found ${allScreens.length} screens to manage`);
-        
-        allScreens.forEach(screen => {
+        document.querySelectorAll('.screen').forEach(screen => {
             screen.classList.add('hidden');
         });
-        
-        // Show target screen
+
         const targetScreen = document.getElementById(screenId);
         if (targetScreen) {
             targetScreen.classList.remove('hidden');
             this.currentScreen = screenId;
-            console.log(`✅ Successfully switched to ${screenId}`);
-        } else {
-            console.error(`❌ Screen not found: ${screenId}`);
         }
     }
 
     showLoadingScreen() {
-        console.log('📺 Showing loading screen...');
         this.showScreen('loading-screen');
     }
 
     showOrderTypeScreen() {
-        console.log('🎯 Showing order type screen...');
         this.showScreen('order-type-screen');
-        
+
         // Add entrance animation
         const cards = document.querySelectorAll('.order-type-card');
-        console.log(`🎴 Found ${cards.length} order type cards for animation`);
-        
         cards.forEach((card, index) => {
             card.style.opacity = '0';
             card.style.transform = 'translateY(50px)';
@@ -236,6 +244,10 @@ class KioskApp {
     }
 
     showPaymentScreen() {
+        if (this.cart.length === 0) {
+            this.showToast('Your cart is empty', 'error');
+            return;
+        }
         this.showScreen('payment-screen');
         this.renderCartItems();
         this.updatePaymentSummary();
@@ -244,41 +256,49 @@ class KioskApp {
     // Order Type Selection
     selectOrderType(type) {
         this.orderType = type;
-        
-        // Add selection animation
-        const selectedCard = document.querySelector(`[data-type="${type}"]`);
-        if (selectedCard) {
-            selectedCard.style.transform = 'scale(1.05)';
-        }
-        
-        // Show toast notification
+
+        // Update header indicator
+        const icon = document.getElementById('order-type-icon');
+        const text = document.getElementById('order-type-text');
+        if (icon) icon.className = type === 'dine-in' ? 'fas fa-chair' : 'fas fa-shopping-bag';
+        if (text) text.textContent = type === 'dine-in' ? 'Dine In' : 'Take Away';
+
         this.showToast(`Selected: ${type === 'dine-in' ? 'Dine In' : 'Take Away'}`);
-        
+
         setTimeout(() => {
             this.showDashboard();
-        }, 800);
+        }, 600);
     }
 
     // Data Loading
+    async loadSettings() {
+        try {
+            if (window.electronAPI && window.electronAPI.database) {
+                const settings = await window.electronAPI.database.getSettings();
+                if (settings && settings.tax_rate) {
+                    this.taxRate = parseFloat(settings.tax_rate);
+                    console.log('📊 Tax rate loaded from DB:', this.taxRate);
+                }
+            }
+        } catch (error) {
+            console.warn('⚠️ Could not load settings, using defaults:', error);
+        }
+    }
+
     async loadCategories() {
         try {
             this.isLoading = true;
-            console.log('📊 Loading categories...');
-            
-            // Check if running in Electron or browser
+
             if (window.electronAPI && window.electronAPI.database) {
-                console.log('🔌 Using Electron API for categories');
                 const response = await window.electronAPI.database.getCategories();
                 this.categories = response || [];
             } else {
-                console.log('🌐 Using mock data for categories (browser mode)');
                 this.categories = this.getMockCategories();
             }
-            
+
             console.log('✅ Loaded categories:', this.categories.length);
         } catch (error) {
             console.error('❌ Failed to load categories:', error);
-            console.log('🔄 Falling back to mock data');
             this.categories = this.getMockCategories();
         } finally {
             this.isLoading = false;
@@ -288,22 +308,17 @@ class KioskApp {
     async loadMenuItems() {
         try {
             this.isLoading = true;
-            console.log('📊 Loading menu items...');
-            
-            // Check if running in Electron or browser
+
             if (window.electronAPI && window.electronAPI.database) {
-                console.log('🔌 Using Electron API for menu items');
                 const response = await window.electronAPI.database.getMenuItems();
                 this.menuItems = response || [];
             } else {
-                console.log('🌐 Using mock data for menu items (browser mode)');
                 this.menuItems = this.getMockMenuItems();
             }
-            
+
             console.log('✅ Loaded menu items:', this.menuItems.length);
         } catch (error) {
             console.error('❌ Failed to load menu items:', error);
-            console.log('🔄 Falling back to mock data');
             this.menuItems = this.getMockMenuItems();
         } finally {
             this.isLoading = false;
@@ -313,17 +328,17 @@ class KioskApp {
     // Category Management
     selectCategory(categoryId) {
         this.currentCategory = categoryId;
-        
+
         // Update category UI
         document.querySelectorAll('.category-item').forEach(item => {
             item.classList.remove('active');
         });
-        
+
         const activeCategory = document.querySelector(`[data-category-id="${categoryId}"]`);
         if (activeCategory) {
             activeCategory.classList.add('active');
         }
-        
+
         // Update category title
         const selectedCategory = this.categories.find(cat => cat.id == categoryId);
         if (selectedCategory) {
@@ -332,8 +347,7 @@ class KioskApp {
                 titleElement.textContent = selectedCategory.name;
             }
         }
-        
-        // Render menu items for this category
+
         this.renderMenuItems(categoryId);
     }
 
@@ -357,27 +371,27 @@ class KioskApp {
         const grid = document.getElementById('menu-items-grid');
         if (!grid) return;
 
-        const categoryItems = this.menuItems.filter(item => 
-            item.category_id == categoryId && item.is_available
+        const categoryItems = this.menuItems.filter(item =>
+            item.category_id == categoryId && (item.is_available || item.is_active)
         );
 
-        const itemsHTML = categoryItems.map(item => `
-            <div class="menu-item" data-item-id="${item.id}">
-                <div class="item-image">
-                    <img src="${item.image_path || 'assets/images/placeholder.svg'}" 
-                         alt="${item.name}" 
-                         onerror="this.src='assets/images/placeholder.svg'">
+        const itemsHTML = categoryItems.map(item => {
+            const imageSrc = item.image_path || 'assets/images/placeholder.svg';
+            return `
+                <div class="menu-item" data-item-id="${item.id}">
+                    <div class="menu-item-image">
+                        <img src="${imageSrc}" 
+                             alt="${item.name}" 
+                             onerror="this.src='assets/images/placeholder.svg'">
+                        <div class="item-price-badge">$${parseFloat(item.price).toFixed(2)}</div>
+                    </div>
+                    <div class="menu-item-content">
+                        <h3 class="menu-item-title">${item.name}</h3>
+                        <p class="menu-item-description">${item.description || ''}</p>
+                    </div>
                 </div>
-                <div class="item-info">
-                    <h3 class="item-name">${item.name}</h3>
-                    <p class="item-description">${item.description || ''}</p>
-                    <div class="item-price">$${parseFloat(item.price).toFixed(2)}</div>
-                </div>
-                <div class="item-overlay">
-                    <i class="fas fa-plus"></i>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
 
         grid.innerHTML = itemsHTML;
 
@@ -391,21 +405,12 @@ class KioskApp {
     // Item Detail Modal
     showItemDetail(itemId) {
         const item = this.menuItems.find(i => i.id == itemId);
-        if (!item) {
-            console.error('❌ Item not found:', itemId);
-            return;
-        }
+        if (!item) return;
 
-        console.log('📝 Showing item detail for:', item.name);
-
-        // Use the existing modal from HTML
         const modal = document.getElementById('item-modal');
-        if (!modal) {
-            console.error('❌ Modal element not found in HTML');
-            return;
-        }
+        if (!modal) return;
 
-        // Populate modal with item data
+        // Populate modal
         const modalItemName = document.getElementById('modal-item-name');
         const modalItemImage = document.getElementById('modal-item-image');
         const modalItemDescription = document.getElementById('modal-item-description');
@@ -416,48 +421,33 @@ class KioskApp {
         if (modalItemImage) {
             modalItemImage.src = item.image_path || 'assets/images/placeholder.svg';
             modalItemImage.alt = item.name;
+            modalItemImage.onerror = function () { this.src = 'assets/images/placeholder.svg'; };
         }
         if (modalItemDescription) modalItemDescription.textContent = item.description || '';
         if (modalItemPrice) modalItemPrice.textContent = `$${parseFloat(item.price).toFixed(2)}`;
         if (quantityDisplay) quantityDisplay.textContent = '1';
-        
-        // Store item ID on modal for later use
-        modal.dataset.itemId = itemId;
 
-        // Show modal
+        modal.dataset.itemId = itemId;
         modal.classList.remove('hidden');
-        console.log('✅ Modal displayed for item:', item.name);
     }
 
     adjustModalQuantity(delta) {
         const quantitySpan = document.getElementById('quantity-display');
-        if (!quantitySpan) {
-            console.error('❌ Quantity display element not found');
-            return;
-        }
+        if (!quantitySpan) return;
         const currentQuantity = parseInt(quantitySpan.textContent);
         const newQuantity = Math.max(1, currentQuantity + delta);
         quantitySpan.textContent = newQuantity;
-        console.log(`🔢 Modal quantity adjusted to: ${newQuantity}`);
     }
 
     addToCartFromModal() {
         const modal = document.getElementById('item-modal');
-        if (!modal) {
-            console.error('❌ Modal not found');
-            return;
-        }
-        
+        if (!modal) return;
+
         const itemId = modal.dataset.itemId;
         const quantityElement = document.getElementById('quantity-display');
-        if (!quantityElement) {
-            console.error('❌ Quantity display not found');
-            return;
-        }
-        
+        if (!quantityElement) return;
+
         const quantity = parseInt(quantityElement.textContent);
-        console.log(`🛒 Adding item ${itemId} with quantity ${quantity} to cart`);
-        
         this.addToCart(itemId, quantity);
         this.closeModal();
     }
@@ -466,7 +456,6 @@ class KioskApp {
         const modal = document.getElementById('item-modal');
         if (modal) {
             modal.classList.add('hidden');
-            console.log('✅ Modal closed');
         }
     }
 
@@ -475,16 +464,14 @@ class KioskApp {
         const item = this.menuItems.find(i => i.id == itemId);
         if (!item) return;
 
-        // Check if item already in cart
         const existingIndex = this.cart.findIndex(cartItem => cartItem.id == itemId);
-        
+
         if (existingIndex !== -1) {
             this.cart[existingIndex].quantity += quantity;
         } else {
             this.cart.push({
                 ...item,
-                quantity: quantity,
-                cartId: Date.now() + Math.random() // Unique cart ID
+                quantity: quantity
             });
         }
 
@@ -493,6 +480,8 @@ class KioskApp {
     }
 
     updateCartItemQuantity(itemIndex, action) {
+        if (itemIndex < 0 || itemIndex >= this.cart.length) return;
+
         if (action === 'increase') {
             this.cart[itemIndex].quantity++;
         } else if (action === 'decrease') {
@@ -516,10 +505,9 @@ class KioskApp {
         const cartCount = this.cart.reduce((sum, item) => sum + item.quantity, 0);
         const cartTotal = this.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-        // Update cart button
         const cartCountElement = document.getElementById('cart-count');
         const cartTotalElement = document.getElementById('cart-total');
-        
+
         if (cartCountElement) cartCountElement.textContent = cartCount;
         if (cartTotalElement) cartTotalElement.textContent = `$${cartTotal.toFixed(2)}`;
 
@@ -529,9 +517,11 @@ class KioskApp {
             if (cartCount > 0) {
                 cartBtn.style.transform = 'translateY(0)';
                 cartBtn.style.opacity = '1';
+                cartBtn.style.pointerEvents = 'auto';
             } else {
                 cartBtn.style.transform = 'translateY(100px)';
                 cartBtn.style.opacity = '0';
+                cartBtn.style.pointerEvents = 'none';
             }
         }
 
@@ -576,7 +566,7 @@ class KioskApp {
 
     updatePaymentSummary() {
         const subtotal = this.cartTotal;
-        const tax = subtotal * 0.1; // 10% tax
+        const tax = subtotal * this.taxRate;
         const total = subtotal + tax;
 
         const subtotalElement = document.getElementById('subtotal');
@@ -590,17 +580,17 @@ class KioskApp {
 
     // Payment Processing
     selectPaymentMethod(method) {
-        // Update UI
         document.querySelectorAll('.payment-method-btn').forEach(pm => {
             pm.classList.remove('selected');
         });
-        
+
         const selectedMethod = document.querySelector(`[data-method="${method}"]`);
         if (selectedMethod) {
             selectedMethod.classList.add('selected');
         }
-        
-        // Enable place order button
+
+        this.selectedPaymentMethod = method;
+
         const placeOrderBtn = document.getElementById('place-order-btn');
         if (placeOrderBtn) {
             placeOrderBtn.disabled = false;
@@ -608,9 +598,21 @@ class KioskApp {
     }
 
     async placeOrder() {
+        if (this.cart.length === 0) {
+            this.showToast('Your cart is empty', 'error');
+            return;
+        }
+
+        if (!this.selectedPaymentMethod) {
+            this.showToast('Please select a payment method', 'error');
+            return;
+        }
+
         try {
             const orderData = {
-                order_type: this.orderType,
+                order_type: this.orderType === 'dine-in' ? 'dine_in' : 'takeout',
+                customer_name: 'Kiosk Customer',
+                payment_method: this.selectedPaymentMethod,
                 items: this.cart.map(item => ({
                     item_id: item.id,
                     name: item.name,
@@ -618,39 +620,70 @@ class KioskApp {
                     price: item.price
                 })),
                 subtotal: this.cartTotal,
-                tax: this.cartTotal * 0.1,
-                total: this.cartTotal * 1.1,
+                tax_rate: this.taxRate,
                 timestamp: new Date().toISOString()
             };
 
             // Show processing state
             const placeOrderBtn = document.getElementById('place-order-btn');
-            const originalText = placeOrderBtn.innerHTML;
-            placeOrderBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-            placeOrderBtn.disabled = true;
+            if (placeOrderBtn) {
+                placeOrderBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                placeOrderBtn.disabled = true;
+            }
 
-            // Simulate order processing
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
-            this.showToast('Order placed successfully!', 'success');
-            console.log('Order placed successfully:', orderData);
-            
-            // Reset for next customer
-            setTimeout(() => {
-                this.resetKiosk();
-            }, 3000);
+            // Actually create the order via IPC
+            let result;
+            if (window.electronAPI && window.electronAPI.database) {
+                result = await window.electronAPI.database.createOrder(orderData);
+            } else {
+                // Browser fallback — simulate
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                result = { success: true, orderNumber: 'DEMO-001' };
+            }
+
+            if (result && result.success) {
+                this.showSuccessScreen(result.orderNumber);
+            } else {
+                throw new Error(result?.message || 'Order creation failed');
+            }
 
         } catch (error) {
             console.error('Failed to place order:', error);
             this.showToast('Failed to place order. Please try again.', 'error');
-            
-            // Reset button state
+
             const placeOrderBtn = document.getElementById('place-order-btn');
             if (placeOrderBtn) {
-                placeOrderBtn.innerHTML = '<i class="fas fa-credit-card"></i> Place Order';
+                placeOrderBtn.innerHTML = '<i class="fas fa-check"></i> Place Order';
                 placeOrderBtn.disabled = false;
             }
         }
+    }
+
+    showSuccessScreen(orderNumber) {
+        // Update success screen content
+        const orderIdEl = document.getElementById('success-order-id');
+        if (orderIdEl) orderIdEl.textContent = orderNumber || '---';
+
+        this.showScreen('success-screen');
+        this.startCountdown(10);
+    }
+
+    startCountdown(seconds) {
+        const timerEl = document.getElementById('countdown-timer');
+        let remaining = seconds;
+        if (timerEl) timerEl.textContent = remaining;
+
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+
+        this.countdownInterval = setInterval(() => {
+            remaining--;
+            if (timerEl) timerEl.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(this.countdownInterval);
+                this.countdownInterval = null;
+                this.resetKiosk();
+            }
+        }, 1000);
     }
 
     resetKiosk() {
@@ -658,7 +691,20 @@ class KioskApp {
         this.cartTotal = 0;
         this.orderType = null;
         this.currentCategory = null;
+        this.selectedPaymentMethod = null;
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+            this.countdownInterval = null;
+        }
         this.updateCartUI();
+
+        // Reset place order button
+        const placeOrderBtn = document.getElementById('place-order-btn');
+        if (placeOrderBtn) {
+            placeOrderBtn.innerHTML = '<i class="fas fa-check"></i><span>Place Order</span>';
+            placeOrderBtn.disabled = false;
+        }
+
         this.showOrderTypeScreen();
     }
 
@@ -676,21 +722,50 @@ class KioskApp {
     }
 
     showToast(message, type = 'info') {
-        // Create toast if it doesn't exist
-        let toast = document.getElementById('toast');
-        if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'toast';
-            toast.className = 'toast';
-            document.body.appendChild(toast);
-        }
+        // Remove existing notification
+        const existing = document.querySelector('.kiosk-notification');
+        if (existing) existing.remove();
+        if (this._toastTimeout) clearTimeout(this._toastTimeout);
 
-        toast.textContent = message;
-        toast.className = `toast ${type} show`;
+        // Config per type
+        const config = {
+            success: { icon: 'fa-check-circle', title: 'Success' },
+            error: { icon: 'fa-exclamation-triangle', title: 'Error' },
+            info: { icon: 'fa-info-circle', title: 'Notice' },
+            warning: { icon: 'fa-exclamation-circle', title: 'Warning' }
+        };
+        const { icon, title } = config[type] || config.info;
 
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
+        // Build notification element
+        const notif = document.createElement('div');
+        notif.className = `kiosk-notification ${type}`;
+        notif.innerHTML = `
+            <div class="notif-icon"><i class="fas ${icon}"></i></div>
+            <div class="notif-body">
+                <div class="notif-title">${title}</div>
+                <div class="notif-message">${message}</div>
+            </div>
+            <button class="notif-close"><i class="fas fa-times"></i></button>
+            <div class="notif-progress"></div>
+        `;
+        document.body.appendChild(notif);
+
+        // Close button
+        notif.querySelector('.notif-close').addEventListener('click', () => {
+            notif.classList.remove('show');
+            setTimeout(() => notif.remove(), 500);
+        });
+
+        // Animate in
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => notif.classList.add('show'));
+        });
+
+        // Auto dismiss
+        this._toastTimeout = setTimeout(() => {
+            notif.classList.remove('show');
+            setTimeout(() => notif.remove(), 500);
+        }, 4000);
     }
 
     showError(message) {
@@ -701,21 +776,26 @@ class KioskApp {
         const icons = {
             'appetizers': 'fas fa-seedling',
             'mains': 'fas fa-utensils',
+            'main courses': 'fas fa-utensils',
             'desserts': 'fas fa-ice-cream',
             'beverages': 'fas fa-coffee',
+            'drinks': 'fas fa-coffee',
             'salads': 'fas fa-leaf',
             'soups': 'fas fa-bowl-hot',
             'pizza': 'fas fa-pizza-slice',
             'burgers': 'fas fa-hamburger',
             'pasta': 'fas fa-wheat-awn',
-            'seafood': 'fas fa-fish'
+            'seafood': 'fas fa-fish',
+            'sandwiches': 'fas fa-bread-slice',
+            'breakfast': 'fas fa-egg',
+            'sides': 'fas fa-french-fries'
         };
-        
+
         const key = categoryName.toLowerCase();
         return icons[key] || 'fas fa-utensils';
     }
 
-    // Mock data for fallback
+    // Mock data for browser fallback only
     getMockCategories() {
         return [
             { id: 1, name: 'Appetizers' },
@@ -732,26 +812,23 @@ class KioskApp {
             { id: 3, name: 'Chocolate Cake', price: 8.99, category_id: 3, is_available: true, description: 'Rich chocolate cake with cream' },
             { id: 4, name: 'Coffee', price: 3.99, category_id: 4, is_available: true, description: 'Fresh brewed coffee' },
             { id: 5, name: 'Garlic Bread', price: 6.99, category_id: 1, is_available: true, description: 'Crispy bread with garlic butter' },
-            { id: 6, name: 'Beef Steak', price: 24.99, category_id: 2, is_available: true, description: 'Juicy beef steak cooked to perfection' },
-            { id: 7, name: 'Ice Cream', price: 5.99, category_id: 3, is_available: true, description: 'Vanilla ice cream with toppings' },
-            { id: 8, name: 'Orange Juice', price: 4.99, category_id: 4, is_available: true, description: 'Fresh squeezed orange juice' },
-            { id: 9, name: 'Fish Tacos', price: 16.99, category_id: 2, is_available: true, description: 'Grilled fish with fresh toppings' },
-            { id: 10, name: 'Cheese Sticks', price: 8.99, category_id: 1, is_available: true, description: 'Mozzarella sticks with marinara sauce' }
+            { id: 6, name: 'Beef Steak', price: 24.99, category_id: 2, is_available: true, description: 'Juicy beef steak cooked to perfection' }
         ];
     }
 }
 
-// Initialize the kiosk app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🎯 DOM Content Loaded - Initializing Kiosk Interface...');
-    window.kioskApp = new KioskApp();
-});
+// Initialize the kiosk app ONCE when DOM is loaded
+let kioskInitialized = false;
 
-// Also initialize immediately if DOM is already ready
-if (document.readyState !== 'loading') {
-    console.log('🎯 DOM Already Ready - Initializing Kiosk Interface...');
+function initKiosk() {
+    if (kioskInitialized) return;
+    kioskInitialized = true;
+    console.log('🎯 Initializing Kiosk Interface...');
     window.kioskApp = new KioskApp();
 }
 
-// Export for global access
-window.KioskApp = KioskApp;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initKiosk);
+} else {
+    initKiosk();
+}

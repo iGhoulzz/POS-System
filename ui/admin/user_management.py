@@ -56,16 +56,10 @@ class UserManagement:
         role_combo['values'] = ('admin', 'cashier', 'kitchen')
         role_combo.grid(row=1, column=3, pady=(10, 0), padx=(0, 20))
         
-        # Email
-        ttk.Label(form_frame, text="Email:").grid(row=2, column=0, sticky='w', pady=(10, 0), padx=(0, 10))
-        self.email_var = tk.StringVar()
-        email_entry = ttk.Entry(form_frame, textvariable=self.email_var, width=30)
-        email_entry.grid(row=2, column=1, columnspan=2, pady=(10, 0), padx=(0, 20), sticky='ew')
-        
         # Active status
         self.active_var = tk.BooleanVar(value=True)
         active_check = ttk.Checkbutton(form_frame, text="Active User", variable=self.active_var)
-        active_check.grid(row=2, column=3, pady=(10, 0), sticky='w')
+        active_check.grid(row=2, column=1, pady=(10, 0), sticky='w')
         
         # Buttons
         button_frame = ttk.Frame(add_frame)
@@ -103,26 +97,24 @@ class UserManagement:
         tree_frame = ttk.Frame(list_frame)
         tree_frame.pack(fill='both', expand=True)
         
-        columns = ('ID', 'Username', 'Full Name', 'Email', 'Role', 'Status', 'Last Login')
+        columns = ('ID', 'Username', 'Full Name', 'Role', 'Status', 'Created')
         self.tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=12)
         
         # Define headings
         self.tree.heading('ID', text='ID')
         self.tree.heading('Username', text='Username')
         self.tree.heading('Full Name', text='Full Name')
-        self.tree.heading('Email', text='Email')
         self.tree.heading('Role', text='Role')
         self.tree.heading('Status', text='Status')
-        self.tree.heading('Last Login', text='Last Login')
+        self.tree.heading('Created', text='Created')
         
         # Configure columns
         self.tree.column('ID', width=50, anchor='center')
-        self.tree.column('Username', width=120, anchor='w')
-        self.tree.column('Full Name', width=180, anchor='w')
-        self.tree.column('Email', width=200, anchor='w')
-        self.tree.column('Role', width=80, anchor='center')
+        self.tree.column('Username', width=150, anchor='w')
+        self.tree.column('Full Name', width=200, anchor='w')
+        self.tree.column('Role', width=100, anchor='center')
         self.tree.column('Status', width=80, anchor='center')
-        self.tree.column('Last Login', width=150, anchor='center')
+        self.tree.column('Created', width=150, anchor='center')
         
         # Scrollbar
         scrollbar = ttk.Scrollbar(tree_frame, orient='vertical', command=self.tree.yview)
@@ -157,8 +149,6 @@ class UserManagement:
         password = self.password_var.get().strip()
         fullname = self.fullname_var.get().strip()
         role = self.role_var.get().strip()
-        email = self.email_var.get().strip()
-        is_active = self.active_var.get()
         
         if not all([username, password, fullname, role]):
             messagebox.showerror("Error", "Please fill in all required fields")
@@ -186,8 +176,8 @@ class UserManagement:
             messagebox.showerror("Error", f"Database error: {str(e)}")
             return
             
-        # Add user
-        if self.user_manager.create_user(username, password, fullname, role, email, is_active):
+        # Add user using UserManager static method
+        if UserManager.create_user(username, password, role, fullname):
             messagebox.showinfo("Success", "User added successfully")
             self.clear_form()
             self.load_users()
@@ -200,7 +190,6 @@ class UserManagement:
         self.password_var.set("")
         self.fullname_var.set("")
         self.role_var.set("")
-        self.email_var.set("")
         self.active_var.set(True)
         
     def load_users(self):
@@ -214,7 +203,7 @@ class UserManagement:
             cursor = conn.cursor()
             
             # Build query with filters
-            query = "SELECT id, username, full_name, email, role, is_active, last_login FROM users WHERE 1=1"
+            query = "SELECT id, username, full_name, role, is_active, created_at FROM users WHERE 1=1"
             params = []
             
             # Role filter
@@ -234,12 +223,12 @@ class UserManagement:
             users = cursor.fetchall()
             
             for user in users:
-                user_id, username, full_name, email, role, is_active, last_login = user
+                user_id, username, full_name, role, is_active, created_at = user
                 
                 status = "Active" if is_active else "Inactive"
-                last_login_str = last_login if last_login else "Never"
+                created_str = created_at if created_at else "N/A"
                 
-                self.tree.insert('', 'end', values=(user_id, username, full_name or "", email or "", role, status, last_login_str))
+                self.tree.insert('', 'end', values=(user_id, username, full_name or "", role, status, created_str))
                 
             # Update count label
             self.count_label.config(text=f"Total Users: {len(users)}")
@@ -273,7 +262,7 @@ class UserManagement:
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT username, full_name, email, role, is_active FROM users WHERE id = ?", (user_id,))
+            cursor.execute("SELECT username, full_name, role, is_active FROM users WHERE id = ?", (user_id,))
             user_data = cursor.fetchone()
             conn.close()
             
@@ -303,22 +292,17 @@ class UserManagement:
         edit_fullname_var = tk.StringVar(value=user_data[1] or "")
         ttk.Entry(form_frame, textvariable=edit_fullname_var, width=30).grid(row=1, column=1, pady=5, padx=(10, 0))
         
-        # Email
-        ttk.Label(form_frame, text="Email:").grid(row=2, column=0, sticky='w', pady=5)
-        edit_email_var = tk.StringVar(value=user_data[2] or "")
-        ttk.Entry(form_frame, textvariable=edit_email_var, width=30).grid(row=2, column=1, pady=5, padx=(10, 0))
-        
         # Role
-        ttk.Label(form_frame, text="Role:").grid(row=3, column=0, sticky='w', pady=5)
-        edit_role_var = tk.StringVar(value=user_data[3])
+        ttk.Label(form_frame, text="Role:").grid(row=2, column=0, sticky='w', pady=5)
+        edit_role_var = tk.StringVar(value=user_data[2])
         role_combo = ttk.Combobox(form_frame, textvariable=edit_role_var, width=27)
         role_combo['values'] = ('admin', 'cashier', 'kitchen')
-        role_combo.grid(row=3, column=1, pady=5, padx=(10, 0))
+        role_combo.grid(row=2, column=1, pady=5, padx=(10, 0))
         
         # Active status
-        edit_active_var = tk.BooleanVar(value=bool(user_data[4]))
+        edit_active_var = tk.BooleanVar(value=bool(user_data[3]))
         active_check = ttk.Checkbutton(form_frame, text="Active User", variable=edit_active_var)
-        active_check.grid(row=4, column=1, pady=10, sticky='w', padx=(10, 0))
+        active_check.grid(row=3, column=1, pady=10, sticky='w', padx=(10, 0))
         
         # Buttons
         button_frame = ttk.Frame(edit_window)
@@ -326,7 +310,6 @@ class UserManagement:
         
         def save_changes():
             fullname = edit_fullname_var.get().strip()
-            email = edit_email_var.get().strip()
             role = edit_role_var.get().strip()
             is_active = edit_active_var.get()
             
@@ -344,9 +327,9 @@ class UserManagement:
                 
                 cursor.execute('''
                     UPDATE users 
-                    SET full_name = ?, email = ?, role = ?, is_active = ?
+                    SET full_name = ?, role = ?, is_active = ?
                     WHERE id = ?
-                ''', (fullname, email, role, is_active, user_id))
+                ''', (fullname, role, is_active, user_id))
                 
                 conn.commit()
                 conn.close()
@@ -452,7 +435,7 @@ class UserManagement:
                 cursor = conn.cursor()
                 
                 hashed_password = hash_password(new_password)
-                cursor.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_password, user_id))
+                cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
                 
                 conn.commit()
                 conn.close()

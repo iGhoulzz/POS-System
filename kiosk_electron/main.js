@@ -15,34 +15,133 @@ app.disableHardwareAcceleration();
 // Fix 3: Set app user model ID
 app.setAppUserModelId('pos-v2-kiosk');
 
-// Fix 4: Additional Chromium flags to prevent quota database issues
-app.commandLine.appendSwitch('--disable-web-security');
+// Chromium flags
 app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
-app.commandLine.appendSwitch('--disable-quota-management');
-app.commandLine.appendSwitch('--disable-storage-quota-database');
 app.commandLine.appendSwitch('--no-sandbox');
 app.commandLine.appendSwitch('--disable-dev-shm-usage');
 app.commandLine.appendSwitch('--disable-background-timer-throttling');
 app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('--disable-renderer-backgrounding');
-app.commandLine.appendSwitch('--disable-background-networking');
+
+// ---- Database Setup (sql.js — pure JS/WASM, no native build needed) ----
+const DB_PATH = path.join(__dirname, '..', 'db', 'pos_system.db');
+
+let db = null;
+let SQL = null;
+
+async function initDatabase() {
+    if (db) return db;
+    try {
+        const initSqlJs = require('sql.js');
+        SQL = await initSqlJs();
+
+        if (!fs.existsSync(DB_PATH)) {
+            console.error('❌ Database file not found:', DB_PATH);
+            return null;
+        }
+
+        const fileBuffer = fs.readFileSync(DB_PATH);
+        db = new SQL.Database(fileBuffer);
+        console.log('✅ Connected to SQLite database at:', DB_PATH);
+        return db;
+    } catch (error) {
+        console.error('❌ Failed to connect to database:', error);
+        return null;
+    }
+}
+
+function saveDatabase() {
+    if (!db) return;
+    try {
+        const data = db.export();
+        const buffer = Buffer.from(data);
+        fs.writeFileSync(DB_PATH, buffer);
+        console.log('💾 Database saved to disk');
+    } catch (error) {
+        console.error('❌ Failed to save database:', error);
+    }
+}
+
+// Helper: run a SELECT query and return results as array of objects
+function queryAll(sql, params = []) {
+    if (!db) return [];
+    try {
+        const stmt = db.prepare(sql);
+        if (params.length > 0) stmt.bind(params);
+
+        const results = [];
+        while (stmt.step()) {
+            results.push(stmt.getAsObject());
+        }
+        stmt.free();
+        return results;
+    } catch (error) {
+        console.error('❌ Query error:', error.message, 'SQL:', sql);
+        return [];
+    }
+}
+
+// Helper: run a single-row SELECT
+function queryOne(sql, params = []) {
+    const results = queryAll(sql, params);
+    return results.length > 0 ? results[0] : null;
+}
+
+// Helper: run INSERT/UPDATE/DELETE
+function runSQL(sql, params = []) {
+    if (!db) return null;
+    try {
+        db.run(sql, params);
+        return true;
+    } catch (error) {
+        console.error('❌ Run error:', error.message, 'SQL:', sql);
+        return false;
+    }
+}
+
+// ---- Electron Store Setup ----
+let store = null;
+
+function getStore() {
+    if (store) return store;
+    try {
+        const Store = require('electron-store');
+        store = new Store({
+            name: 'pos-kiosk-settings',
+            cwd: userDataPath
+        });
+        console.log('✅ Electron store initialized');
+        return store;
+    } catch (error) {
+        console.error('❌ Failed to initialize electron-store:', error);
+        return null;
+    }
+}
 
 class POSKioskApp {
     constructor() {
         this.mainWindow = null;
         this.isDev = process.argv.includes('--dev');
         this.isKioskMode = !this.isDev;
-        
-        // Initialize app
+
         this.initializeApp();
     }
-    
+
     initializeApp() {
-        // App event handlers with enhanced error handling
-        app.whenReady().then(() => {
+        app.whenReady().then(async () => {
             console.log('🚀 Electron app ready, creating main window...');
+
+            // Initialize database connection
+            const database = await initDatabase();
+            if (!database) {
+                console.error('❌ Database not available. Check that pos_system.db exists at:', DB_PATH);
+            }
+
+            // Initialize store
+            getStore();
+
             this.createMainWindow();
-            
+
             app.on('activate', () => {
                 if (BrowserWindow.getAllWindows().length === 0) {
                     this.createMainWindow();
@@ -51,63 +150,57 @@ class POSKioskApp {
         }).catch((error) => {
             console.error('❌ Failed to initialize app:', error);
         });
-        
+
         app.on('window-all-closed', () => {
             if (process.platform !== 'darwin') {
                 app.quit();
             }
         });
-        
-        // Fix: Prevent new window creation
+
+        // Prevent new window creation
         app.on('web-contents-created', (event, contents) => {
             contents.on('new-window', (event, navigationUrl) => {
                 event.preventDefault();
-                console.log('🚫 Blocked new window creation:', navigationUrl);
             });
         });
-        
+
         app.on('before-quit', (event) => {
-            if (this.isKioskMode) {
-                // Prevent quit in kiosk mode unless specific condition
-                event.preventDefault();
+            // Save and close database on quit
+            if (db) {
+                try {
+                    saveDatabase();
+                    db.close();
+                } catch (e) { /* ignore */ }
+                db = null;
             }
         });
-        
+
         // IPC handlers
         this.setupIpcHandlers();
     }
-      createMainWindow() {
-        // Fix 4: Enhanced window configuration with cache settings
+
+    createMainWindow() {
         const windowConfig = {
             width: this.isDev ? 1400 : 1920,
-            height: this.isDev ? 900 : 1080,            webPreferences: {
+            height: this.isDev ? 900 : 1080,
+            webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
                 enableRemoteModule: false,
                 preload: path.join(__dirname, 'preload.js'),
-                // Fix 5: Use temporary session to avoid quota database persistence
                 partition: 'temp:kiosk-session',
-                webSecurity: false, // Relaxed for kiosk mode
+                webSecurity: true,
                 allowRunningInsecureContent: false,
                 experimentalFeatures: false,
-                // Disable problematic features to prevent quota issues
-                webgl: false,
-                webaudio: false,
-                plugins: false,
-                // Enhanced cache and storage settings
-                cache: false,
-                // Disable quota management features
-                backgroundThrottling: false,
-                offscreen: false
+                backgroundThrottling: false
             },
             icon: path.join(__dirname, 'assets', 'icon.png'),
-            show: false, // Show after ready
+            show: false,
             autoHideMenuBar: true,
             titleBarStyle: 'hidden',
-            // Fix 6: Window appearance
             backgroundColor: '#ffffff'
         };
-        
+
         // Kiosk mode settings
         if (this.isKioskMode) {
             windowConfig.kiosk = true;
@@ -122,25 +215,21 @@ class POSKioskApp {
             windowConfig.resizable = true;
             windowConfig.minWidth = 1024;
             windowConfig.minHeight = 768;
-        }        this.mainWindow = new BrowserWindow(windowConfig);
-        
-        // Fix 8: Configure session to prevent quota database issues
+        }
+
+        this.mainWindow = new BrowserWindow(windowConfig);
+
+        // Clear storage data on startup
         const session = this.mainWindow.webContents.session;
-          // Clear storage data on startup to prevent quota issues
         session.clearStorageData({
             storages: ['websql', 'indexdb', 'localstorage', 'shadercache', 'serviceworkers']
-        }).then(() => {
-            console.log('🧹 Session storage cleared to prevent quota issues');
         }).catch((error) => {
             console.log('⚠️ Session storage clear warning:', error.message);
         });
-        
-        // Configure session settings to prevent quota database issues
-        session.setUserAgent('POS-V2-Kiosk/1.0');
-        
-        // Fix 9: Load the app with error handling
+
+        // Load the app
         const indexPath = path.join(__dirname, 'renderer', 'index.html');
-        
+
         if (fs.existsSync(indexPath)) {
             this.mainWindow.loadFile(indexPath)
                 .then(() => {
@@ -152,163 +241,184 @@ class POSKioskApp {
         } else {
             console.error('❌ Index file not found:', indexPath);
         }
-          // Show window when ready
+
+        // Show window when ready
         this.mainWindow.once('ready-to-show', () => {
             this.mainWindow.show();
             console.log('🖥️ Kiosk window displayed');
-            
-            // Suppress quota database error messages in console
-            this.mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-                // Filter out quota database errors as they don't affect functionality
-                if (message.includes('quota_database') || 
-                    message.includes('Failed to reset the quota database') ||
-                    message.includes('Could not open the quota database')) {
-                    return; // Don't log these specific errors
-                }
-                
-                // Log other console messages normally
-                if (level === 2) { // Error level
-                    console.error(`Console Error: ${message}`);
-                } else if (level === 1) { // Warning level
-                    console.warn(`Console Warning: ${message}`);
-                }
-            });
-            
+
             if (this.isDev) {
                 this.mainWindow.webContents.openDevTools();
             }
         });
-        
-        // Fix 8: Handle window events
+
         this.mainWindow.on('closed', () => {
             this.mainWindow = null;
         });
-        
+
         // Prevent navigation to external URLs
         this.mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-            const parsedUrl = new URL(navigationUrl);
-            
-            if (parsedUrl.origin !== 'file://') {
-                event.preventDefault();
+            try {
+                const parsedUrl = new URL(navigationUrl);
+                if (parsedUrl.origin !== 'file://') {
+                    event.preventDefault();
+                }
+            } catch (e) {
+                // ignore invalid URLs
             }
         });
-        
+
         // Handle external links
         this.mainWindow.webContents.setWindowOpenHandler(({ url }) => {
             shell.openExternal(url);
             return { action: 'deny' };
         });
-        
-        // Security: Prevent new window creation
-        this.mainWindow.webContents.on('new-window', (event) => {
-            event.preventDefault();
-        });
     }
-      setupIpcHandlers() {
-        // Fix 11: Enhanced database IPC handlers with error handling
-        
-        // Get app version
-        ipcMain.handle('get-app-version', () => {
-            return app.getVersion();
-        });
-        
-        // Get app info
-        ipcMain.handle('get-app-info', () => {
-            return {
-                version: app.getVersion(),
-                platform: process.platform,
-                arch: process.arch,
-                isDev: this.isDev,
-                isKioskMode: this.isKioskMode
-            };
-        });
-        
-        // Database operations - Enhanced with error handling
-        ipcMain.handle('database:getCategories', async () => {
+
+    setupIpcHandlers() {
+        // ---- App Info ----
+        ipcMain.handle('get-app-version', () => app.getVersion());
+
+        ipcMain.handle('get-app-info', () => ({
+            version: app.getVersion(),
+            platform: process.platform,
+            arch: process.arch,
+            isDev: this.isDev,
+            isKioskMode: this.isKioskMode
+        }));
+
+        // ---- Real Database Operations ----
+
+        ipcMain.handle('db-get-categories', async () => {
             try {
-                console.log('🔍 Fetching categories from database...');
-                // Mock data for now - replace with actual database call
-                const categories = [
-                    { id: 1, name: 'Appetizers', description: 'Start your meal', is_active: 1 },
-                    { id: 2, name: 'Main Courses', description: 'Hearty dishes', is_active: 1 },
-                    { id: 3, name: 'Beverages', description: 'Drinks & more', is_active: 1 },
-                    { id: 4, name: 'Desserts', description: 'Sweet endings', is_active: 1 }
-                ];
-                console.log('✅ Categories fetched successfully:', categories.length);
+                const categories = queryAll(
+                    'SELECT id, name, description FROM categories WHERE is_active = 1 ORDER BY name'
+                );
+                console.log(`✅ Fetched ${categories.length} categories from DB`);
                 return categories;
             } catch (error) {
-                console.error('❌ Database error getting categories:', error);
+                console.error('❌ Error getting categories:', error);
                 return [];
             }
         });
 
-        ipcMain.handle('database:getMenuItems', async (event, categoryId) => {
+        ipcMain.handle('db-get-menu-items', async () => {
             try {
-                console.log('🔍 Fetching menu items for category:', categoryId);
-                // Mock data for now - replace with actual database call
-                const mockItems = [
-                    { 
-                        id: 1, 
-                        name: 'Chicken Wings', 
-                        description: 'Spicy buffalo wings with ranch dip', 
-                        sell_price: 12.99, 
-                        category_id: 1,
-                        image_path: null,
-                        is_active: 1 
-                    },
-                    { 
-                        id: 2, 
-                        name: 'Caesar Salad', 
-                        description: 'Fresh romaine with parmesan and croutons', 
-                        sell_price: 9.99, 
-                        category_id: 1,
-                        image_path: null,
-                        is_active: 1 
-                    },
-                    { 
-                        id: 3, 
-                        name: 'Grilled Salmon', 
-                        description: 'Atlantic salmon with seasonal vegetables', 
-                        sell_price: 24.99, 
-                        category_id: 2,
-                        image_path: null,
-                        is_active: 1 
-                    }
-                ];
-                
-                const filteredItems = categoryId ? mockItems.filter(item => item.category_id === categoryId) : mockItems;
-                console.log('✅ Menu items fetched successfully:', filteredItems.length);
-                return filteredItems;
+                const items = queryAll(`
+                    SELECT mi.id, mi.name, mi.description, mi.price, mi.cost_price,
+                           mi.category_id, mi.image_path, mi.is_active
+                    FROM menu_items mi
+                    WHERE mi.is_active = 1
+                    ORDER BY mi.name
+                `);
+
+                // Map fields for kiosk compatibility
+                const mappedItems = items.map(item => ({
+                    ...item,
+                    is_available: item.is_active === 1,
+                    // Resolve image path relative to project root
+                    image_path: item.image_path
+                        ? path.join(__dirname, '..', item.image_path).replace(/\\/g, '/')
+                        : null
+                }));
+
+                console.log(`✅ Fetched ${mappedItems.length} menu items from DB`);
+                return mappedItems;
             } catch (error) {
-                console.error('❌ Database error getting menu items:', error);
+                console.error('❌ Error getting menu items:', error);
                 return [];
             }
         });
 
-        ipcMain.handle('database:createOrder', async (event, orderData) => {
+        ipcMain.handle('db-create-order', async (event, orderData) => {
             try {
-                console.log('📝 Creating order:', orderData);
-                // Mock order creation - replace with actual database call
-                const result = { 
-                    success: true, 
-                    orderId: Math.floor(Math.random() * 10000),
-                    message: 'Order placed successfully'
+                if (!db) {
+                    return { success: false, message: 'Database not available' };
+                }
+
+                // Generate order number
+                const now = new Date();
+                const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+                const countResult = queryOne(
+                    "SELECT COUNT(*) as count FROM orders WHERE date(created_at) = date('now', 'localtime')"
+                );
+                const orderCount = (countResult?.count || 0) + 1;
+                const orderNumber = `ORD-${dateStr}-${orderCount.toString().padStart(3, '0')}`;
+
+                // Calculate totals
+                const subtotal = orderData.subtotal || 0;
+                const taxRate = orderData.tax_rate || 0.08;
+                const taxAmount = subtotal * taxRate;
+                const totalAmount = subtotal + taxAmount;
+
+                // Insert order
+                runSQL(`
+                    INSERT INTO orders (order_number, customer_name, order_type, 
+                                       total_amount, tax_amount, 
+                                       payment_method, status, created_by, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, datetime('now', 'localtime'))
+                `, [
+                    orderNumber,
+                    orderData.customer_name || 'Kiosk Customer',
+                    orderData.order_type || 'dine_in',
+                    totalAmount,
+                    taxAmount,
+                    orderData.payment_method || 'cash',
+                    null  // created_by = null for kiosk orders
+                ]);
+
+                // Get the last inserted order ID
+                const lastIdResult = queryOne('SELECT last_insert_rowid() as id');
+                const orderId = lastIdResult?.id;
+
+                // Insert order items
+                for (const item of (orderData.items || [])) {
+                    runSQL(`
+                        INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price)
+                        VALUES (?, ?, ?, ?, ?)
+                    `, [
+                        orderId,
+                        item.item_id || item.id,
+                        item.quantity,
+                        item.price,
+                        item.price * item.quantity
+                    ]);
+                }
+
+                // Save to disk after order creation
+                saveDatabase();
+
+                console.log(`✅ Order created: ${orderNumber} (ID: ${orderId})`);
+                return {
+                    success: true,
+                    orderId: orderId,
+                    orderNumber: orderNumber
                 };
-                console.log('✅ Order created successfully:', result.orderId);
-                return result;
             } catch (error) {
-                console.error('❌ Database error creating order:', error);
+                console.error('❌ Error creating order:', error);
                 return { success: false, message: error.message };
             }
         });
-        
-        // Window operations
+
+        ipcMain.handle('db-get-settings', async () => {
+            try {
+                const settings = queryAll('SELECT key, value FROM settings');
+                const result = {};
+                settings.forEach(s => { result[s.key] = s.value; });
+                return result;
+            } catch (error) {
+                console.error('❌ Error getting settings:', error);
+                return {};
+            }
+        });
+
+        // ---- Window Operations ----
         ipcMain.handle('minimize-window', () => {
             if (this.mainWindow && !this.isKioskMode) {
                 this.mainWindow.minimize();
             }
         });
-        
+
         ipcMain.handle('maximize-window', () => {
             if (this.mainWindow && !this.isKioskMode) {
                 if (this.mainWindow.isMaximized()) {
@@ -318,27 +428,26 @@ class POSKioskApp {
                 }
             }
         });
-        
+
         ipcMain.handle('close-window', () => {
             if (this.mainWindow && !this.isKioskMode) {
                 this.mainWindow.close();
             }
         });
-        
+
         // Restart app
         ipcMain.handle('restart-app', () => {
             app.relaunch();
             app.exit();
         });
-        
-        // Quit app (admin only)
+
+        // Quit app
         ipcMain.handle('quit-app', async () => {
             if (!this.isKioskMode) {
                 app.quit();
                 return true;
             }
-            
-            // In kiosk mode, require admin confirmation
+
             const result = await dialog.showMessageBox(this.mainWindow, {
                 type: 'question',
                 buttons: ['Cancel', 'Quit'],
@@ -347,41 +456,34 @@ class POSKioskApp {
                 message: 'Are you sure you want to quit the kiosk application?',
                 detail: 'This will close the POS system.'
             });
-            
+
             if (result.response === 1) {
                 app.quit();
                 return true;
             }
-            
             return false;
         });
-        
+
         // Toggle fullscreen
         ipcMain.handle('toggle-fullscreen', () => {
             if (this.mainWindow && !this.isKioskMode) {
                 this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
             }
         });
-        
+
         // Show error dialog
         ipcMain.handle('show-error', (event, title, content) => {
             return dialog.showErrorBox(title, content);
         });
-        
+
         // Show message dialog
         ipcMain.handle('show-message', async (event, options) => {
             return await dialog.showMessageBox(this.mainWindow, options);
         });
-        
-        // Open external URL
-        ipcMain.handle('open-external', (event, url) => {
-            shell.openExternal(url);
-        });
-        
-        // Print operations
+
+        // Print receipt
         ipcMain.handle('print-receipt', async (event, content) => {
             try {
-                // Create a hidden window for printing
                 const printWindow = new BrowserWindow({
                     width: 300,
                     height: 400,
@@ -391,19 +493,15 @@ class POSKioskApp {
                         contextIsolation: true
                     }
                 });
-                
-                // Load receipt content
+
                 await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(content)}`);
-                
-                // Print
+
                 await printWindow.webContents.print({
                     silent: true,
                     printBackground: true,
-                    margins: {
-                        marginType: 'none'
-                    }
+                    margins: { marginType: 'none' }
                 });
-                
+
                 printWindow.close();
                 return true;
             } catch (error) {
@@ -411,99 +509,35 @@ class POSKioskApp {
                 return false;
             }
         });
-        
-        // Database path configuration
-        ipcMain.handle('get-db-path', () => {
-            // Return path to the database file
-            const dbPath = store.get('dbPath') || path.join(__dirname, '..', 'db', 'pos.db');
-            return dbPath;
-        });
-        
-        ipcMain.handle('set-db-path', (event, dbPath) => {
-            store.set('dbPath', dbPath);
-        });
 
-        // Database operations for kiosk
-        ipcMain.handle('db-get-categories', async () => {
-            try {
-                // Return mock data for now - in production this would connect to actual database
-                return [
-                    { id: 1, name: 'Appetizers', description: 'Start your meal right' },
-                    { id: 2, name: 'Main Courses', description: 'Hearty main dishes' },
-                    { id: 3, name: 'Desserts', description: 'Sweet endings' },
-                    { id: 4, name: 'Beverages', description: 'Refreshing drinks' }
-                ];
-            } catch (error) {
-                console.error('Error getting categories:', error);
-                throw error;
-            }
-        });
-
-        ipcMain.handle('db-get-menu-items', async () => {
-            try {
-                // Return mock data for now - in production this would connect to actual database
-                return [
-                    { id: 1, name: 'Caesar Salad', price: 12.99, category_id: 1, is_available: true, description: 'Fresh romaine lettuce with caesar dressing', image_path: 'assets/images/placeholder.svg' },
-                    { id: 2, name: 'Buffalo Wings', price: 9.99, category_id: 1, is_available: true, description: 'Spicy chicken wings with ranch', image_path: 'assets/images/placeholder.svg' },
-                    { id: 3, name: 'Grilled Salmon', price: 24.99, category_id: 2, is_available: true, description: 'Fresh Atlantic salmon with herbs', image_path: 'assets/images/placeholder.svg' },
-                    { id: 4, name: 'Ribeye Steak', price: 32.99, category_id: 2, is_available: true, description: 'Premium cut with garlic butter', image_path: 'assets/images/placeholder.svg' },
-                    { id: 5, name: 'Chicken Pasta', price: 18.99, category_id: 2, is_available: true, description: 'Creamy alfredo with grilled chicken', image_path: 'assets/images/placeholder.svg' },
-                    { id: 6, name: 'Chocolate Lava Cake', price: 8.99, category_id: 3, is_available: true, description: 'Warm chocolate cake with molten center', image_path: 'assets/images/placeholder.svg' },
-                    { id: 7, name: 'Tiramisu', price: 7.99, category_id: 3, is_available: true, description: 'Classic Italian coffee-flavored dessert', image_path: 'assets/images/placeholder.svg' },
-                    { id: 8, name: 'Fresh Coffee', price: 3.99, category_id: 4, is_available: true, description: 'Freshly brewed premium coffee', image_path: 'assets/images/placeholder.svg' },
-                    { id: 9, name: 'Fresh Juice', price: 4.99, category_id: 4, is_available: true, description: 'Seasonal fresh fruit juice', image_path: 'assets/images/placeholder.svg' },
-                    { id: 10, name: 'Craft Beer', price: 5.99, category_id: 4, is_available: true, description: 'Local craft beer selection', image_path: 'assets/images/placeholder.svg' }
-                ];
-            } catch (error) {
-                console.error('Error getting menu items:', error);
-                throw error;
-            }
-        });
-
-        ipcMain.handle('db-create-order', async (event, orderData) => {
-            try {
-                // In production, this would save to actual database
-                console.log('Creating order:', orderData);
-                
-                // Generate order ID and return success
-                const orderId = Date.now();
-                
-                return {
-                    success: true,
-                    orderId: orderId,
-                    orderNumber: `ORD-${orderId}`
-                };
-            } catch (error) {
-                console.error('Error creating order:', error);
-                throw error;
-            }
-        });
-        
-        // Settings operations
+        // Settings via electron-store
         ipcMain.handle('get-settings', () => {
+            const s = getStore();
+            if (!s) return {};
             return {
-                dbPath: store.get('dbPath'),
-                theme: store.get('theme', 'light'),
-                language: store.get('language', 'en'),
-                autoStartKiosk: store.get('autoStartKiosk', true),
-                printerSettings: store.get('printerSettings', {}),
-                kioskSettings: store.get('kioskSettings', {
-                    idleTimeout: 300, // 5 minutes
+                theme: s.get('theme', 'light'),
+                language: s.get('language', 'en'),
+                autoStartKiosk: s.get('autoStartKiosk', true),
+                printerSettings: s.get('printerSettings', {}),
+                kioskSettings: s.get('kioskSettings', {
+                    idleTimeout: 300,
                     screensaverEnabled: true,
                     autoLogout: true
                 })
             };
         });
-        
+
         ipcMain.handle('save-settings', (event, settings) => {
+            const s = getStore();
+            if (!s) return;
             Object.keys(settings).forEach(key => {
-                store.set(key, settings[key]);
+                s.set(key, settings[key]);
             });
         });
     }
 }
 
-// Fix 13: Handle app crashes and errors
+// Handle crashes
 process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
 });

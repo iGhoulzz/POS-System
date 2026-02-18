@@ -297,7 +297,7 @@ class MenuManagerTab:
             # Add items to treeview
             for item in items:
                 status = "Active" if item.get('is_active', 1) else "Inactive"
-                price = f"${item.get('sell_price', 0):.2f}"
+                price = f"${item.get('price', 0):.2f}"
                 self.items_tree.insert('', tk.END, 
                                      values=(item.get('name', ''), 
                                            item.get('category_name', ''), 
@@ -456,11 +456,11 @@ class MenuManagerTab:
                 
                 # Load pricing
                 self.cost_price_var.set(str(item.get('cost_price', 0)))
-                self.sell_price_var.set(str(item.get('sell_price', 0)))
+                self.sell_price_var.set(str(item.get('price', 0)))
                 
                 # Load other fields
                 self.is_active_var.set(bool(item.get('is_active', 1)))
-                self.prep_time_var.set(str(item.get('prep_time', 0)))
+                self.prep_time_var.set(str(item.get('preparation_time', 0)))
                 
                 # Load image if exists
                 if item.get('image_path'):
@@ -658,8 +658,8 @@ class MenuManagerTab:
                 logging.info(f"MenuManager: Updating existing menu item ID: {self.current_item['id']}")
                 
                 query = """UPDATE menu_items SET 
-                          name=?, description=?, category_id=?, cost_price=?, sell_price=?, 
-                          is_active=?, prep_time=?, image_path=? 
+                          name=?, description=?, category_id=?, cost_price=?, price=?, 
+                          is_active=?, preparation_time=?, image_path=? 
                           WHERE id=?"""
                 params = (name, description, category_id, cost_price, sell_price, 
                          is_active, prep_time, image_path, self.current_item['id'])
@@ -681,7 +681,7 @@ class MenuManagerTab:
                 logging.info(f"MenuManager: Creating new menu item: {name}")
                 
                 query = """INSERT INTO menu_items 
-                          (name, description, category_id, cost_price, sell_price, is_active, prep_time, image_path) 
+                          (name, description, category_id, cost_price, price, is_active, preparation_time, image_path) 
                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
                 params = (name, description, category_id, cost_price, sell_price, 
                          is_active, prep_time, image_path)

@@ -179,6 +179,30 @@
         </div>
     </div>
 
+    <!-- Order Success Screen -->
+    <div id="success-screen" class="screen hidden">
+        <div class="success-container">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h1 class="success-title">Order Placed Successfully!</h1>
+            <div class="success-order-number">
+                <span>Order #</span>
+                <span id="success-order-id">---</span>
+            </div>
+            <p class="success-message">Your order is being prepared. Please wait for your number to be called.</p>
+            <div class="success-countdown">
+                <span>Returning to home in </span>
+                <span id="countdown-timer" class="countdown-number">10</span>
+                <span> seconds</span>
+            </div>
+            <button id="new-order-btn" class="new-order-btn">
+                <i class="fas fa-plus-circle"></i>
+                <span>Start New Order</span>
+            </button>
+        </div>
+    </div>
+
     <!-- Item Detail Modal -->
     <div id="item-modal" class="modal hidden">
         <div class="modal-content">
@@ -215,11 +239,9 @@
                 </button>
             </div>
         </div>
-    </div>    <!-- Toast Notifications -->
-    <div id="toast-container" class="toast-container"></div>
+    </div>
     
     <!-- Scripts -->
-    <script src="js/database.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/kiosk.js"></script>
 </body>

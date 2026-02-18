@@ -23,7 +23,8 @@
     "electron-builder": "^24.6.4"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "sql.js": "^1.14.0"
   },
   "build": {
     "appId": "com.posv2.kiosk",
