@@ -385,17 +385,19 @@ class AdminPanel:
             start_date, end_date = self._get_date_range()
 
             conn = sqlite3.connect(self.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT o.id, o.order_number, o.created_at, o.customer_name,
-                       o.order_type, o.total_amount, o.tax_amount, o.status
-                FROM orders o
-                WHERE DATE(o.created_at) BETWEEN ? AND ?
-                ORDER BY o.created_at DESC
-            """, (start_date, end_date))
-            orders = cursor.fetchall()
-            conn.close()
+            try:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT o.id, o.order_number, o.created_at, o.customer_name,
+                           o.order_type, o.total_amount, o.tax_amount, o.status
+                    FROM orders o
+                    WHERE DATE(o.created_at) BETWEEN ? AND ?
+                    ORDER BY o.created_at DESC
+                """, (start_date, end_date))
+                orders = cursor.fetchall()
+            finally:
+                conn.close()
 
             for order in orders:
                 oid = order['id']
@@ -580,26 +582,27 @@ class AdminPanel:
         """Get today's statistics from database"""
         try:
             conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            today = date.today().strftime('%Y-%m-%d')
-            
-            # Get orders count and revenue for today
-            cursor.execute("""
-                SELECT COUNT(*), COALESCE(SUM(total_amount), 0), COALESCE(SUM(tax_amount), 0)
-                FROM orders 
-                WHERE DATE(created_at) = ?
-            """, (today,))
-            
-            orders, revenue, tax = cursor.fetchone()
-            orders = orders or 0
-            revenue = revenue or 0.0
-            tax = tax or 0.0
-            
-            # Calculate average order value
-            avg_order = revenue / orders if orders > 0 else 0.0
-            
-            conn.close()
+            try:
+                cursor = conn.cursor()
+                
+                today = date.today().strftime('%Y-%m-%d')
+                
+                # Get orders count and revenue for today
+                cursor.execute("""
+                    SELECT COUNT(*), COALESCE(SUM(total_amount), 0), COALESCE(SUM(tax_amount), 0)
+                    FROM orders 
+                    WHERE DATE(created_at) = ?
+                """, (today,))
+                
+                orders, revenue, tax = cursor.fetchone()
+                orders = orders or 0
+                revenue = revenue or 0.0
+                tax = tax or 0.0
+                
+                # Calculate average order value
+                avg_order = revenue / orders if orders > 0 else 0.0
+            finally:
+                conn.close()
             
             return {
                 'orders': orders,
