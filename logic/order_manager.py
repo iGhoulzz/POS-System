@@ -2,17 +2,16 @@
 Order management logic
 """
 
-import time
 from datetime import datetime
 from typing import List, Dict, Optional
-from db.db_utils import execute_query_dict, execute_query
+from db.db_utils import execute_query_dict, execute_query, get_db_connection
 
 class OrderManager:
     @staticmethod
     def generate_order_number() -> str:
         """Generate a unique order number"""
-        timestamp = int(time.time())
-        return f"ORD{timestamp}"
+        now = datetime.now()
+        return f"ORD-{now.strftime('%Y%m%d-%H%M%S-%f')}"
     
     @staticmethod
     def create_order(customer_name: str, order_type: str, items: List[Dict], 
@@ -31,44 +30,56 @@ class OrderManager:
         Returns:
             Dictionary with order_id and order_number if successful, None otherwise
         """
+        if not items:
+            return None
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
         try:
             # Calculate totals
             subtotal = sum(item['quantity'] * item['unit_price'] for item in items)
             tax_amount = subtotal * tax_rate
             total_amount = subtotal + tax_amount
-            
-            # Create order
+
+            # Create order and order items in one transaction
             order_number = OrderManager.generate_order_number()
             order_query = '''
                 INSERT INTO orders (order_number, customer_name, order_type, 
                                   total_amount, tax_amount, payment_method, created_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             '''
-            execute_query(order_query, (order_number, customer_name, order_type,
-                                      total_amount, tax_amount, payment_method, created_by))
-            
-            # Get the order ID
-            order_id_query = "SELECT id FROM orders WHERE order_number = ?"
-            order_result = execute_query_dict(order_id_query, (order_number,), 'one')
-            order_id = order_result['id']
-            
-            # Add order items
+            cursor.execute(order_query, (
+                order_number, customer_name, order_type,
+                total_amount, tax_amount, payment_method, created_by
+            ))
+            order_id = cursor.lastrowid
+
+            item_query = '''
+                INSERT INTO order_items (order_id, menu_item_id, quantity, 
+                                       unit_price, total_price, special_instructions)
+                VALUES (?, ?, ?, ?, ?, ?)
+            '''
             for item in items:
                 item_total = item['quantity'] * item['unit_price']
-                item_query = '''
-                    INSERT INTO order_items (order_id, menu_item_id, quantity, 
-                                           unit_price, total_price, special_instructions)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                '''
-                execute_query(item_query, (order_id, item['menu_item_id'], item['quantity'],
-                                         item['unit_price'], item_total, 
-                                         item.get('special_instructions', '')))
-            
+                cursor.execute(item_query, (
+                    order_id,
+                    item['menu_item_id'],
+                    item['quantity'],
+                    item['unit_price'],
+                    item_total,
+                    item.get('special_instructions', '')
+                ))
+
+            conn.commit()
             return {'order_id': order_id, 'order_number': order_number}
-        
+
         except Exception as e:
+            conn.rollback()
             print(f"Error creating order: {e}")
             return None
+        finally:
+            conn.close()
     
     @staticmethod
     def get_order_by_id(order_id: int) -> Optional[Dict]:

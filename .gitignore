@@ -50,6 +50,7 @@ yarn-error.log
 **/Partitions/
 
 # Database
+*.db
 *.db-journal
 *.sqlite3-journal
 
@@ -82,3 +83,6 @@ test-*.py
 **/tests/temp/
 **/FINAL_TEST_SUITE.html
 **/INTERACTIVE_ELEMENTS_FINAL_REPORT.md
+
+# Receipts
+receipts/*.pdf

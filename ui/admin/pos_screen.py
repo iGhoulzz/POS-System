@@ -324,7 +324,7 @@ class POSTab:
             payment_method = self.payment_method_var.get()
             tax_rate = SettingsManager.get_tax_rate()
             
-            order_id = OrderManager.create_order(
+            order_result = OrderManager.create_order(
                 customer_name=customer_name,
                 order_type=order_type,
                 items=self.cart_items,
@@ -333,10 +333,16 @@ class POSTab:
                 tax_rate=tax_rate
             )
             
-            if order_id:
+            if order_result:
+                order_id = order_result.get('order_id')
+                order_number = order_result.get('order_number')
+
                 # Get order details for receipt
                 order = OrderManager.get_order_by_id(order_id)
                 order_items = OrderManager.get_order_items(order_id)
+                if not order:
+                    messagebox.showerror("Error", "Order was created but could not be loaded")
+                    return
                 
                 # Print receipt
                 self.print_receipt(order, order_items)
@@ -347,7 +353,7 @@ class POSTab:
                 self.update_cart_display()
                 self.update_totals()
                 
-                messagebox.showinfo("Success", f"Order {order['order_number']} processed successfully!")
+                messagebox.showinfo("Success", f"Order {order_number or order['order_number']} processed successfully!")
             else:
                 messagebox.showerror("Error", "Failed to create order")
                 
