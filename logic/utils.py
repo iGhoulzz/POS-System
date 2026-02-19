@@ -5,6 +5,7 @@ Utility functions for the POS system
 import re
 import uuid
 import hashlib
+import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 import json
@@ -17,7 +18,7 @@ def validate_number(value: Any) -> bool:
     """Validate that a value is a finite, non-negative number."""
     try:
         num = float(value)
-        return 0 <= num < float('inf')
+        return num >= 0 and math.isfinite(num)
     except (TypeError, ValueError):
         return False
 
