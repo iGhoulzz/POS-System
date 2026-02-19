@@ -2,12 +2,11 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-// Fix 1: Set app data path to avoid permission issues
-const userDataPath = path.join(__dirname, 'app-data');
+// Use Electron's writable per-user data directory
+const userDataPath = app.getPath('userData');
 if (!fs.existsSync(userDataPath)) {
     fs.mkdirSync(userDataPath, { recursive: true });
 }
-app.setPath('userData', userDataPath);
 
 // Fix 2: Disable hardware acceleration to avoid GPU cache issues
 app.disableHardwareAcceleration();
@@ -17,7 +16,6 @@ app.setAppUserModelId('pos-v2-kiosk');
 
 // Chromium flags
 app.commandLine.appendSwitch('--disable-features', 'VizDisplayCompositor');
-app.commandLine.appendSwitch('--no-sandbox');
 app.commandLine.appendSwitch('--disable-dev-shm-usage');
 app.commandLine.appendSwitch('--disable-background-timer-throttling');
 app.commandLine.appendSwitch('--disable-backgrounding-occluded-windows');
@@ -180,6 +178,7 @@ class POSKioskApp {
     }
 
     createMainWindow() {
+        const iconPath = path.join(__dirname, 'assets', 'icon.png');
         const windowConfig = {
             width: this.isDev ? 1400 : 1920,
             height: this.isDev ? 900 : 1080,
@@ -194,12 +193,15 @@ class POSKioskApp {
                 experimentalFeatures: false,
                 backgroundThrottling: false
             },
-            icon: path.join(__dirname, 'assets', 'icon.png'),
             show: false,
             autoHideMenuBar: true,
             titleBarStyle: 'hidden',
             backgroundColor: '#0B0E14'
         };
+
+        if (fs.existsSync(iconPath)) {
+            windowConfig.icon = iconPath;
+        }
 
         // Kiosk mode settings
         if (this.isKioskMode) {
@@ -331,9 +333,13 @@ class POSKioskApp {
         });
 
         ipcMain.handle('db-create-order', async (event, orderData) => {
+            let transactionStarted = false;
             try {
                 if (!db) {
                     return { success: false, message: 'Database not available' };
+                }
+                if (!Array.isArray(orderData?.items) || orderData.items.length === 0) {
+                    return { success: false, message: 'Order must include at least one item' };
                 }
 
                 // Generate order number
@@ -351,8 +357,14 @@ class POSKioskApp {
                 const taxAmount = subtotal * taxRate;
                 const totalAmount = subtotal + taxAmount;
 
+                // Keep order + items atomic
+                if (!runSQL('BEGIN TRANSACTION')) {
+                    throw new Error('Failed to start database transaction');
+                }
+                transactionStarted = true;
+
                 // Insert order
-                runSQL(`
+                const orderInserted = runSQL(`
                     INSERT INTO orders (order_number, customer_name, order_type, 
                                        total_amount, tax_amount, 
                                        payment_method, status, created_by, created_at)
@@ -366,24 +378,44 @@ class POSKioskApp {
                     orderData.payment_method || 'cash',
                     null  // created_by = null for kiosk orders
                 ]);
+                if (!orderInserted) {
+                    throw new Error('Failed to insert order');
+                }
 
                 // Get the last inserted order ID
                 const lastIdResult = queryOne('SELECT last_insert_rowid() as id');
                 const orderId = lastIdResult?.id;
+                if (!orderId) {
+                    throw new Error('Failed to determine created order ID');
+                }
 
                 // Insert order items
                 for (const item of (orderData.items || [])) {
-                    runSQL(`
+                    const quantity = Number(item.quantity);
+                    const unitPrice = Number(item.price);
+                    if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
+                        throw new Error('Invalid order item quantity or price');
+                    }
+
+                    const itemInserted = runSQL(`
                         INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price, total_price)
                         VALUES (?, ?, ?, ?, ?)
                     `, [
                         orderId,
                         item.item_id || item.id,
-                        item.quantity,
-                        item.price,
-                        item.price * item.quantity
+                        quantity,
+                        unitPrice,
+                        unitPrice * quantity
                     ]);
+                    if (!itemInserted) {
+                        throw new Error('Failed to insert order item');
+                    }
                 }
+
+                if (!runSQL('COMMIT')) {
+                    throw new Error('Failed to commit order transaction');
+                }
+                transactionStarted = false;
 
                 // Save to disk after order creation
                 saveDatabase();
@@ -395,6 +427,9 @@ class POSKioskApp {
                     orderNumber: orderNumber
                 };
             } catch (error) {
+                if (transactionStarted) {
+                    runSQL('ROLLBACK');
+                }
                 console.error('❌ Error creating order:', error);
                 return { success: false, message: error.message };
             }

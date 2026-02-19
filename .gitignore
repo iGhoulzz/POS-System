@@ -50,8 +50,10 @@ yarn-error.log
 **/Partitions/
 
 # Database
+*.db
 *.db-journal
 *.sqlite3-journal
+receipts/*.pdf
 
 # IDE
 .vscode/

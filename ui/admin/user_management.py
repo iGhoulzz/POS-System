@@ -354,7 +354,7 @@ class UserManagement:
         item_values = self.tree.item(selected_item[0])['values']
         user_id = item_values[0]
         username = item_values[1]
-        current_status = item_values[5]
+        current_status = item_values[4]
         
         new_status = "Inactive" if current_status == "Active" else "Active"
         
