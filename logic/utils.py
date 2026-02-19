@@ -5,6 +5,7 @@ Utility functions for the POS system
 import re
 import uuid
 import hashlib
+import math
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 import json
@@ -14,9 +15,10 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def validate_number(value: Any) -> bool:
-    """Validate that a value is a non-negative number."""
+    """Validate that a value is a finite, non-negative number."""
     try:
-        return float(value) >= 0
+        num = float(value)
+        return num >= 0 and math.isfinite(num)
     except (TypeError, ValueError):
         return False
 

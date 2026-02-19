@@ -355,12 +355,13 @@ class KioskApp {
         const sidebar = document.getElementById('categories-list');
         if (!sidebar) return;
 
+        const esc = (str) => Utils.sanitizeInput(String(str ?? ''));
         const categoriesHTML = this.categories.map(category => `
             <div class="category-item" data-category-id="${category.id}">
                 <div class="category-icon">
                     <i class="${this.getCategoryIcon(category.name)}"></i>
                 </div>
-                <span class="category-name">${category.name}</span>
+                <span class="category-name">${esc(category.name)}</span>
             </div>
         `).join('');
 
@@ -375,19 +376,20 @@ class KioskApp {
             item.category_id == categoryId && (item.is_available || item.is_active)
         );
 
+        const esc = (str) => Utils.sanitizeInput(String(str ?? ''));
         const itemsHTML = categoryItems.map(item => {
             const imageSrc = item.image_path || 'assets/images/placeholder.svg';
             return `
                 <div class="menu-item" data-item-id="${item.id}">
                     <div class="menu-item-image">
                         <img src="${imageSrc}" 
-                             alt="${item.name}" 
+                             alt="${esc(item.name)}" 
                              onerror="this.src='assets/images/placeholder.svg'">
                         <div class="item-price-badge">$${parseFloat(item.price).toFixed(2)}</div>
                     </div>
                     <div class="menu-item-content">
-                        <h3 class="menu-item-title">${item.name}</h3>
-                        <p class="menu-item-description">${item.description || ''}</p>
+                        <h3 class="menu-item-title">${esc(item.name)}</h3>
+                        <p class="menu-item-description">${esc(item.description || '')}</p>
                     </div>
                 </div>
             `;
@@ -537,10 +539,11 @@ class KioskApp {
             return;
         }
 
+        const esc = (str) => Utils.sanitizeInput(String(str ?? ''));
         const cartHTML = this.cart.map((item, index) => `
             <div class="cart-item">
                 <div class="cart-item-info">
-                    <h4>${item.name}</h4>
+                    <h4>${esc(item.name)}</h4>
                     <p class="cart-item-price">$${parseFloat(item.price).toFixed(2)} each</p>
                 </div>
                 <div class="cart-item-controls">
@@ -739,11 +742,12 @@ class KioskApp {
         // Build notification element
         const notif = document.createElement('div');
         notif.className = `kiosk-notification ${type}`;
+        const esc = (str) => Utils.sanitizeInput(String(str ?? ''));
         notif.innerHTML = `
             <div class="notif-icon"><i class="fas ${icon}"></i></div>
             <div class="notif-body">
-                <div class="notif-title">${title}</div>
-                <div class="notif-message">${message}</div>
+                <div class="notif-title">${esc(title)}</div>
+                <div class="notif-message">${esc(message)}</div>
             </div>
             <button class="notif-close"><i class="fas fa-times"></i></button>
             <div class="notif-progress"></div>
