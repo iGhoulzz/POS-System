@@ -84,6 +84,8 @@ test-*.py
 **/tests/temp/
 **/FINAL_TEST_SUITE.html
 **/INTERACTIVE_ELEMENTS_FINAL_REPORT.md
+.pytest_cache/
+**/.pytest_cache/
 
 # Receipts
 receipts/*.pdf
